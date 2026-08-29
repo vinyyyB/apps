@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Apps">
+<meta name="theme-color" content="#0E1116">
+<title>Meus apps</title>
+<style>
+  :root{
+    --bg:#0E1116; --panel:#171B22; --panel-2:#1E232C; --line:#2A313D;
+    --ink:#E9ECF2; --mut:#8B95A6; --dim:#5C6473; --ok:#3DD68C; --bad:#FF6169;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--ink)}
+  body{font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+  input{font:inherit;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%}
+  ::placeholder{color:var(--dim)}
+  .wrap{max-width:560px;margin:0 auto;padding:calc(env(safe-area-inset-top) + 26px) 16px calc(env(safe-area-inset-bottom) + 40px)}
+  h1{font-size:24px;letter-spacing:-.5px;margin:0}
+  h1 small{display:block;font-size:11px;font-weight:500;color:var(--mut);letter-spacing:.1em;text-transform:uppercase;margin-top:4px}
+  .apps{margin:24px 0 34px}
+  .app{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--line);
+       border-radius:16px;padding:16px;margin-bottom:11px;position:relative;overflow:hidden}
+  .app:active{background:var(--panel-2)}
+  .app .risco{position:absolute;left:0;top:0;bottom:0;width:3px}
+  .app b{display:block;font-size:17px;font-weight:650;letter-spacing:-.2px}
+  .app span{font-size:12.5px;color:var(--mut)}
+  .app .seta{margin-left:auto;color:var(--mut);font-size:20px}
+  h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);margin:0 0 12px;font-weight:600}
+  .cartao{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+  .campo{margin-bottom:11px}
+  .campo label{display:block;font-size:12.5px;color:var(--mut);margin-bottom:6px}
+  .dupla{display:flex;gap:10px}
+  .dupla>*{flex:1;min-width:0}
+  .btn{display:block;width:100%;text-align:center;padding:13px;border-radius:12px;background:var(--ink);color:#0E1116;font-weight:650;margin-top:8px}
+  .btn.ghost{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);font-weight:500}
+  .nota{font-size:12.5px;color:var(--mut);line-height:1.55;margin:12px 0 0}
+  .nota b{color:var(--ink);font-weight:600}
+  #saida{width:100%;min-height:88px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;
+         color:var(--ink);font:11.5px/1.4 ui-monospace,Menlo,monospace;padding:10px;margin-top:11px;display:none}
+  .aviso{margin-top:12px;font-size:12.5px;padding:9px 12px;border-radius:10px;display:none}
+  .aviso.ok{display:block;background:rgba(61,214,140,.12);color:var(--ok)}
+  .aviso.erro{display:block;background:rgba(255,97,105,.12);color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Meus apps<small>vinyyyb.github.io</small></h1>
+
+  <div class="apps">
+    <a class="app" href="controle_faltas/">
+      <span class="risco" style="background:#6E8EFF"></span>
+      <span><b>Caderneta</b><span>Controle de faltas</span></span>
+      <span class="seta">›</span>
+    </a>
+    <a class="app" href="planner/">
+      <span class="risco" style="background:#37C6A6"></span>
+      <span><b>Planner</b><span>Semana e quadros</span></span>
+      <span class="seta">›</span>
+    </a>
+    <a class="app" href="controle_grana/">
+      <span class="risco" style="background:#F2B14B"></span>
+      <span><b>Grana</b><span>Gastos e contas</span></span>
+      <span class="seta">›</span>
+    </a>
+  </div>
+
+  <h2>Sincronização</h2>
+  <div class="cartao">
+    <div class="campo"><label>Endereço do servidor</label>
+      <input id="url" placeholder="https://jolly-shape-5e26.vhbocon.workers.dev"></div>
+    <div class="campo"><label>Seu código</label>
+      <input id="cod" placeholder="código secreto"></div>
+    <div class="dupla">
+      <button class="btn ghost" style="margin-top:0" id="salvar">Salvar</button>
+      <button class="btn ghost" style="margin-top:0" id="desligar">Desligar</button>
+    </div>
+    <p class="nota">Vale pros três apps de uma vez — cada um guarda numa caixa separada,
+      e cada pessoa na sua. <b id="estado"></b></p>
+    <div class="aviso" id="aviso"></div>
+  </div>
+
+  <h2 style="margin-top:30px">Link pra outro aparelho</h2>
+  <div class="cartao">
+    <div class="campo"><label>Código de quem vai usar</label>
+      <input id="codLink" placeholder="o seu, ou o de outra pessoa"></div>
+    <button class="btn" id="gerar">Gerar link</button>
+    <textarea id="saida" readonly></textarea>
+    <button class="btn ghost" id="copiar" style="display:none">Copiar</button>
+    <p class="nota">Quem abrir o link entra com tudo configurado, nos três apps.
+      O código vai dentro dele, então mande em conversa direta.</p>
+  </div>
+</div>
+
+<script>
+var CONF='sync:conf';
+var $=function(id){ return document.getElementById(id) };
+
+function conf(){ try{ return JSON.parse(localStorage.getItem(CONF)||'{}') }catch(e){ return {} } }
+function ativo(){ var c=conf(); return !!(c.url&&c.codigo) }
+function fala(tipo,msg){ var a=$('aviso'); a.className='aviso '+tipo; a.textContent=msg }
+function pinta(){
+  var c=conf();
+  $('url').value=c.url||''; $('cod').value=c.codigo||'';
+  if(!$('codLink').value) $('codLink').value=c.codigo||'';
+  $('estado').textContent = ativo()?'Ligada neste aparelho.':'Desligada — os dados ficam só aqui.';
+}
+
+$('salvar').onclick=function(){
+  var u=$('url').value.trim().replace(/\/+$/,''), c=$('cod').value.trim();
+  if(!u||!c) return fala('erro','Preencha endereço e código');
+  if(!/^https?:\/\//.test(u)) return fala('erro','O endereço precisa começar com https://');
+  localStorage.setItem(CONF, JSON.stringify({url:u,codigo:c}));
+  pinta(); fala('ok','Pronto. Abra os apps e eles já sincronizam.');
+};
+$('desligar').onclick=function(){
+  localStorage.setItem(CONF,'{}');
+  pinta(); fala('ok','Sincronização desligada. Os dados continuam neste aparelho.');
+};
+
+function empacota(url,codigo){
+  return btoa(unescape(encodeURIComponent(url+'|'+codigo))).replace(/=+$/,'');
+}
+$('gerar').onclick=function(){
+  var c=conf(), quem=$('codLink').value.trim();
+  if(!c.url) return fala('erro','Configure o servidor primeiro');
+  if(!quem) return fala('erro','Informe o código de quem vai usar');
+  var base=location.origin+location.pathname.replace(/index\.html$/,'');
+  $('saida').value=base+'#sync='+empacota(c.url,quem);
+  $('saida').style.display='block'; $('copiar').style.display='block';
+  fala('ok','Link gerado');
+};
+$('copiar').onclick=function(){
+  var t=$('saida'); t.select();
+  var pronto=function(){ fala('ok','Link copiado') };
+  if(navigator.clipboard) navigator.clipboard.writeText(t.value).then(pronto,function(){ fala('erro','Copie o texto acima') });
+  else { try{ document.execCommand('copy'); pronto() }catch(e){ fala('erro','Copie o texto acima') } }
+};
+
+/* aceita o link de convite aqui também */
+(function(){
+  var m=(location.hash||'').match(/^#sync=(.+)$/);
+  if(!m) return;
+  try{
+    var txt=decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    var i=txt.indexOf('|'), u=txt.slice(0,i), c=txt.slice(i+1);
+    if(u&&c){
+      localStorage.setItem(CONF, JSON.stringify({url:u,codigo:c}));
+      history.replaceState(null,'',location.pathname+location.search);
+      fala('ok','Sincronização configurada por link');
+    }
+  }catch(e){}
+})();
+
+pinta();
+</script>
+</body>
+</html>
