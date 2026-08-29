@@ -19,7 +19,7 @@ const resposta = (obj, status = 200) =>
     headers: { ...CORS, 'content-type': 'application/json; charset=utf-8' }
   });
 
-const CHAVE = 'caderneta';
+const caixa = 'dados:' + codigo;
 const LIMITE = 2 * 1024 * 1024; // 2 MB, folga de sobra
 
 export default {
