@@ -64,8 +64,12 @@
   .ptop .txt{flex:1 1 auto;min-width:0;margin-top:0}
   .prio{flex:0 0 auto;width:13px;height:13px;margin-top:4px;padding:0;border:1.5px solid var(--line);border-radius:3px;background:transparent;cursor:pointer}
   .prio:hover{border-color:var(--dim)}
-  .grip{flex:0 0 auto;background:none;border:0;color:#C3CABF;font-size:12px;line-height:1;padding:3px 1px 0;cursor:grab;opacity:0;transition:opacity .12s}
+  .grip{flex:0 0 auto;background:none;border:0;color:#C3CABF;font-size:12px;line-height:1;padding:3px 1px 0;cursor:grab;opacity:0;transition:opacity .12s;touch-action:none}
   .row:hover .grip,.grip:focus{opacity:1}
+  @media (hover:none){ .grip{opacity:.55;padding:3px 5px 0;font-size:14px} }
+  .fantasma{position:fixed;z-index:60;pointer-events:none;margin:0;list-style:none;
+            background:var(--surface);border:1px solid var(--line);border-radius:2px;
+            padding:6px 8px;box-shadow:0 8px 20px rgba(22,33,31,.28);opacity:.96}
   .row.dragging{opacity:.35}
   .row.over-top{box-shadow:0 -2px 0 0 var(--clay)}
   .row.over-bottom{box-shadow:0 2px 0 0 var(--clay)}
@@ -359,6 +363,86 @@ function criaSync(cfg) {
   var PORDER=[null,"r","o","y","g"];
 
   var DRAG=null;
+
+  /* ---------- arrastar no toque (o Safari do iPhone não tem drag nativo) ---------- */
+  var TOQUE=null;
+  document.addEventListener('touchmove',function(e){ if(TOQUE) e.preventDefault() },{passive:false});
+
+  function toqueInicia(li,x,y){
+    var b=li.getBoundingClientRect();
+    var g=li.cloneNode(true);
+    g.className='fantasma';
+    g.style.left=b.left+'px'; g.style.top=b.top+'px'; g.style.width=b.width+'px';
+    document.body.appendChild(g);
+    TOQUE={li:li,arr:li._arr,r:li._r,ghost:g,dx:x-b.left,dy:y-b.top,alvo:null};
+    li.classList.add('dragging');
+    document.body.style.overflow='hidden';
+    if(navigator.vibrate) navigator.vibrate(8);
+  }
+  function toqueMove(x,y){
+    if(!TOQUE) return;
+    TOQUE.ghost.style.left=(x-TOQUE.dx)+'px';
+    TOQUE.ghost.style.top=(y-TOQUE.dy)+'px';
+    clearMarks();
+    TOQUE.alvo=null;
+    var el=document.elementFromPoint(x,y);
+    if(!el||!el.closest) return;
+    var row=el.closest('.row'), ul=el.closest('ul.rows');
+    if(row && row!==TOQUE.li && row._arr){
+      var b=row.getBoundingClientRect(), depois=(y-b.top)>b.height/2;
+      row.classList.add(depois?'over-bottom':'over-top');
+      TOQUE.alvo={arr:row._arr,i:row._arr.indexOf(row._r)+(depois?1:0)};
+    } else if(ul && ul._arr){
+      ul.classList.add('over');
+      TOQUE.alvo={arr:ul._arr,i:ul._arr.length};
+    }
+  }
+  function toqueSolta(){
+    if(!TOQUE) return;
+    var alvo=TOQUE.alvo, arr=TOQUE.arr, r=TOQUE.r, li=TOQUE.li, g=TOQUE.ghost;
+    TOQUE=null;
+    g.remove(); li.classList.remove('dragging');
+    document.body.style.overflow='';
+    clearMarks();
+    if(alvo) moveItem(arr,r,alvo.arr,alvo.i);
+  }
+  function ligaToque(li){
+    li.addEventListener('pointerdown',function(ev){
+      if(ev.pointerType==='mouse' || TOQUE) return;      // mouse segue no drag nativo
+      var noGrip=!!(ev.target.closest && ev.target.closest('.grip'));
+      var alvoTexto=!!(ev.target.closest && ev.target.closest('.txt,.pick,.cb,.x'));
+      if(alvoTexto && !noGrip) return;                    // editar e marcar continuam normais
+      var x0=ev.clientX, y0=ev.clientY, pid=ev.pointerId, espera=null, comecou=false;
+
+      var comeca=function(){ comecou=true; toqueInicia(li,x0,y0) };
+      var anda=function(e){
+        if(e.pointerId!==pid) return;
+        if(!comecou){
+          if(Math.abs(e.clientX-x0)>10||Math.abs(e.clientY-y0)>10){ clearTimeout(espera); limpa() }
+          return;
+        }
+        toqueMove(e.clientX,e.clientY);
+      };
+      var sobe=function(e){
+        if(e.pointerId!==pid) return;
+        clearTimeout(espera);
+        if(comecou) toqueSolta();
+        limpa();
+      };
+      var limpa=function(){
+        document.removeEventListener('pointermove',anda);
+        document.removeEventListener('pointerup',sobe);
+        document.removeEventListener('pointercancel',sobe);
+      };
+      document.addEventListener('pointermove',anda);
+      document.addEventListener('pointerup',sobe);
+      document.addEventListener('pointercancel',sobe);
+
+      if(noGrip){ ev.preventDefault(); comeca() }
+      else espera=setTimeout(comeca,380);
+    });
+  }
+
   function clearMarks(){
     Array.prototype.forEach.call(document.querySelectorAll('.over-top,.over-bottom,.rows.over'),function(el){
       el.classList.remove('over-top','over-bottom','over');
@@ -470,6 +554,7 @@ function criaSync(cfg) {
   /* ---------- linha (usada nos dois modos) ---------- */
   function makeRow(arr,r,opt){
     var li=document.createElement('li'); li.className='row'+(r.d?' done':'');
+    li._arr=arr; li._r=r;
 
     var cb=document.createElement('input'); cb.type='checkbox'; cb.className='cb'; cb.checked=!!r.d;
     cb.addEventListener('change',function(){ r.d=cb.checked; li.className='row'+(r.d?' done':''); save() });
@@ -547,6 +632,7 @@ function criaSync(cfg) {
       moveItem(DRAG.arr,DRAG.r,arr,arr.indexOf(r)+(after?1:0));
     });
 
+    ligaToque(li);
     return li;
   }
 
@@ -562,7 +648,7 @@ function criaSync(cfg) {
     }
     card.appendChild(h);
 
-    var ul=document.createElement('ul'); ul.className='rows';
+    var ul=document.createElement('ul'); ul.className='rows'; ul._arr=arr;
     arr.forEach(function(r){ ul.appendChild(makeRow(arr,r,opts.optSubject)) });
     ul.addEventListener('dragover',function(e){
       if(!DRAG) return;
