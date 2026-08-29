@@ -284,6 +284,28 @@ function save(marcar=true){
 }
 
 /* ===== sincronia entre aparelhos ===== */
+function empacota(url,codigo){
+  return btoa(unescape(encodeURIComponent(url+'|'+codigo))).replace(/=+$/,'');
+}
+function leLinkSync(){
+  const m=(location.hash||'').match(/^#sync=(.+)$/);
+  if(!m) return null;
+  try{
+    const txt=decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    const i=txt.indexOf('|');   // o endereço nunca tem |, o código pode ter
+    const url=txt.slice(0,i), codigo=txt.slice(i+1);
+    if(url&&codigo) return {url,codigo};
+  }catch(e){}
+  return null;
+}
+function limpaHash(){
+  try{ history.replaceState(null,'',location.pathname+location.search); }
+  catch(e){ location.hash=''; }
+}
+function enderecoDoApp(){
+  return location.origin+location.pathname;
+}
+
 let pushT=null, sincronizando=false;
 const cfgSync=()=>(state&&state.settings&&state.settings.sync)||{};
 function syncAtivo(){ const c=cfgSync(); return !!(c.url&&c.codigo); }
@@ -760,6 +782,23 @@ function sheetAddDate(sub){
   `);
 }
 
+function sheetLink(){
+  const c=cfgSync();
+  openSheet(`
+    <h2>Link já configurado</h2>
+    <p class="sub">Quem abrir o link entra com a sincronia pronta, sem digitar nada.</p>
+    <div class="field"><label>Servidor</label>
+      <input id="l-url" value="${esc(c.url||'')}"></div>
+    <div class="field"><label>Código de quem vai usar</label>
+      <input id="l-cod" value="${esc(c.codigo||'')}" placeholder="o código dela, ou o seu">
+      <p class="hint">Pro seu outro computador, deixe o seu código. Pra outra pessoa, ponha o código dela — o que você cadastrou em CODIGOS no Worker.</p></div>
+    <button class="btn" data-act="fazer-link">Gerar link</button>
+    <div class="field" style="margin-top:14px">
+      <textarea id="l-out" readonly placeholder="o link aparece aqui"></textarea></div>
+    <button class="btn ghost" data-act="copiar-link">Copiar link</button>
+  `);
+}
+
 /* --- ajustes --- */
 function sheetSettings(){
   openSheet(`
@@ -781,8 +820,8 @@ function sheetSettings(){
         <button class="btn ghost" style="margin-top:0" data-act="salvar-sync">Salvar</button>
         <button class="btn ghost" style="margin-top:0" data-act="sync-agora">Sincronizar agora</button>
       </div>
-      <p class="hint">${syncAtivo()?'Ligado. Envia sozinho a cada alteração e confere ao abrir.':'Desligado — os dados ficam só neste aparelho.'}
-        Use o mesmo endereço e código nos três aparelhos.</p>
+      <p class="hint">${syncAtivo()?'Ligado. Envia sozinho a cada alteração e confere ao abrir.':'Desligado — os dados ficam só neste aparelho.'}</p>
+      ${syncAtivo()?`<button class="btn ghost" data-act="gerar-link">Criar link já configurado</button>`:''}
     </div>
     <div class="field"><label>Backup</label>
       <p class="hint" style="margin:0 0 10px">${SS.modo==='app'?'Salvando dentro do chat.':SS.modo==='navegador'?'Salvando neste navegador, neste aparelho. Celular e computador guardam listas separadas.':'Este navegador não deixa salvar — baixe o arquivo antes de fechar.'}</p>
@@ -927,6 +966,23 @@ document.addEventListener('click',ev=>{
       state.settings.sync={url,codigo}; save(false);
       closeSheet(); return sincroniza(true);
     }
+    case 'gerar-link': return sheetLink();
+    case 'fazer-link':{
+      const u=document.getElementById('l-url').value.trim().replace(/\/+$/,'');
+      const c=document.getElementById('l-cod').value.trim();
+      if(!u||!c) return toast('Preencha servidor e código');
+      document.getElementById('l-out').value=enderecoDoApp()+'#sync='+empacota(u,c);
+      return toast('Link gerado');
+    }
+    case 'copiar-link':{
+      const t=document.getElementById('l-out');
+      if(!t.value) return toast('Gere o link primeiro');
+      t.select();
+      (navigator.clipboard?navigator.clipboard.writeText(t.value):Promise.reject())
+        .then(()=>toast('Link copiado'))
+        .catch(()=>{ try{document.execCommand('copy');toast('Link copiado');}catch(e){toast('Copie o texto acima');} });
+      return;
+    }
     case 'baixar':{
       const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,1)],{type:'application/json'}));
       const a=document.createElement('a'); a.href=url; a.download='caderneta-'+todayIso+'.json'; a.click();
@@ -1004,8 +1060,15 @@ document.addEventListener('change',ev=>{
   else { state=seed(); state.atualizado=0; }   // aparelho novo nunca vence o servidor
   if(!state.settings)state.settings={curitiba:true};
   save(false);
+  const convite=leLinkSync();
+  if(convite){
+    state.settings.sync=convite;
+    save(false);
+    limpaHash();
+  }
   applyTheme(state.settings.tema);
   render();
+  if(convite) toast('Sincronia configurada');
   if(syncAtivo()) sincroniza();
 })();
 </script>
