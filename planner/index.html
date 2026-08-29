@@ -60,17 +60,8 @@
   .grid.board .day::-webkit-scrollbar{width:6px;height:6px}
   .grid.board .day::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
   .grid.board .newcol{flex:0 0 auto;width:180px}
-  .ptop{display:flex;align-items:flex-start;gap:8px}
-  .ptop .txt{flex:1 1 auto;min-width:0;margin-top:0}
-  .prio{flex:0 0 auto;width:13px;height:13px;margin-top:4px;padding:0;border:1.5px solid var(--line);border-radius:3px;background:transparent;cursor:pointer}
-  .prio:hover{border-color:var(--dim)}
-  .grip{flex:0 0 auto;background:none;border:0;color:#C3CABF;font-size:12px;line-height:1;padding:3px 1px 0;cursor:grab;opacity:0;transition:opacity .12s}
-  .row:hover .grip,.grip:focus{opacity:1}
-  .row.dragging{opacity:.35}
-  .row.over-top{box-shadow:0 -2px 0 0 var(--clay)}
-  .row.over-bottom{box-shadow:0 2px 0 0 var(--clay)}
-  ul.rows{min-height:24px}
-  ul.rows.over{background:rgba(79,138,91,.10);border-radius:2px}
+  .tagbtn{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;background:none;border:1px dashed var(--line);color:#B4BBB3;padding:2px 6px;border-radius:2px}
+  .tagbtn:hover{border-color:var(--green);color:var(--green)}
   .day{background:var(--surface);border:1px solid var(--line);padding:12px 13px;display:flex;flex-direction:column}
   .dh{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
   .dh .dt{color:#AEB6AD;letter-spacing:.04em;font-weight:400}
@@ -155,8 +146,191 @@
 </aside>
 
 <script>
+/* ---- sincronia entre aparelhos ---- */
+/* sync.js — sincronia entre aparelhos para apps HTML de uma página só.
+ *
+ * Como usar, dentro do seu app:
+ *
+ *   const sync = criaSync({
+ *     app: 'financas',            // vira o caminho no servidor: /financas
+ *     chave: 'financas:v1',       // onde guarda no navegador
+ *     ler:     ()      => estado, // devolve o objeto que você quer salvar
+ *     aplicar: (novo)  => { estado = novo; render(); },
+ *     aviso:   (tipo,msg) => console.log(tipo, msg)   // opcional
+ *   });
+ *
+ *   estado = sync.carregar() || estadoInicial();   // ao abrir
+ *   await sync.iniciar();                          // lê link e puxa do servidor
+ *   ...
+ *   sync.salvar();   // chame depois de QUALQUER alteração
+ *
+ * Para ligar: sync.configurar('https://SEU-WORKER.workers.dev', 'seu-codigo')
+ * A configuração é compartilhada por todos os apps do mesmo domínio —
+ * configurou num, valeu pra todos.
+ */
+
+function criaSync(cfg) {
+  const CONF = 'sync:conf';          // endereço + código, comum a todos os apps
+  const avisa = (t, m) => { try { cfg.aviso && cfg.aviso(t, m); } catch (e) {} };
+
+  const lerLocal = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const gravarLocal = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
+
+  const conf = () => { try { return JSON.parse(lerLocal(CONF) || '{}'); } catch (e) { return {}; } };
+  const ativo = () => { const c = conf(); return !!(c.url && c.codigo); };
+  const endereco = () => conf().url.replace(/\/+$/, '') + '/' + cfg.app;
+
+  let empurrando = null, sincronizando = false;
+
+  /* --- envelope: seus dados + o carimbo de hora --- */
+  const embrulha = dados => JSON.stringify({ _v: 1, _atualizado: Date.now(), dados });
+  function desembrulha(txt) {
+    try {
+      const o = JSON.parse(txt);
+      if (o && o._v === 1 && 'dados' in o) return o;
+      return null;
+    } catch (e) { return null; }
+  }
+  const quando = () => { const o = desembrulha(lerLocal(cfg.chave) || ''); return o ? o._atualizado : 0; };
+
+  /* --- link do tipo  #sync=<base64>  --- */
+  function empacota(url, codigo) {
+    return btoa(unescape(encodeURIComponent(url + '|' + codigo))).replace(/=+$/, '');
+  }
+  function leLink() {
+    const m = (location.hash || '').match(/^#sync=(.+)$/);
+    if (!m) return null;
+    try {
+      const txt = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      const i = txt.indexOf('|');
+      const url = txt.slice(0, i), codigo = txt.slice(i + 1);
+      if (url && codigo) return { url, codigo };
+    } catch (e) {}
+    return null;
+  }
+
+  const api = {
+    ativo,
+    config: conf,
+
+    configurar(url, codigo) {
+      if (url && codigo) gravarLocal(CONF, JSON.stringify({ url: url.replace(/\/+$/, ''), codigo }));
+      else gravarLocal(CONF, '{}');
+      return ativo();
+    },
+
+    /* link que já entra configurado em outro aparelho ou pra outra pessoa */
+    link(codigo) {
+      const c = conf();
+      if (!c.url) return '';
+      return location.origin + location.pathname + '#sync=' + empacota(c.url, codigo || c.codigo);
+    },
+
+    /* Lê o que está guardado neste aparelho.
+       Se encontrar dado no formato antigo (sem carimbo de hora), adota e
+       carimba na hora — senão ele nunca ganharia do servidor vazio. */
+    carregar() {
+      const raw = lerLocal(cfg.chave);
+      if (!raw) return null;
+      const o = desembrulha(raw);
+      if (o) return o.dados;
+      try {
+        const legado = JSON.parse(raw);
+        if (legado && typeof legado === 'object') {
+          gravarLocal(cfg.chave, embrulha(legado));
+          return legado;
+        }
+      } catch (e) {}
+      return null;
+    },
+
+    salvar() {
+      const ok = gravarLocal(cfg.chave, embrulha(cfg.ler()));
+      if (!ok) avisa('erro', 'este navegador não guardou os dados');
+      if (ativo()) { clearTimeout(empurrando); empurrando = setTimeout(api.empurrar, 1800); }
+      return ok;
+    },
+
+    async empurrar() {
+      if (!ativo()) return false;
+      avisa('indo', 'enviando');
+      try {
+        const r = await fetch(endereco(), {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', 'x-codigo': conf().codigo },
+          body: lerLocal(cfg.chave)
+        });
+        if (r.status === 401) { avisa('erro', 'código recusado'); return false; }
+        if (!r.ok) throw 0;
+        avisa('ok', 'sincronizado');
+        return true;
+      } catch (e) { avisa('erro', 'sem conexão'); return false; }
+    },
+
+    async sincroniza() {
+      if (!ativo() || sincronizando) return;
+      sincronizando = true;
+      avisa('indo', 'sincronizando');
+      try {
+        const r = await fetch(endereco(), { headers: { 'x-codigo': conf().codigo }, cache: 'no-store' });
+        if (r.status === 401) { avisa('erro', 'código recusado'); return; }
+        if (!r.ok) throw 0;
+        const remoto = desembrulha(await r.text());
+        const meu = quando();
+        if (remoto && remoto._atualizado > meu) {
+          gravarLocal(cfg.chave, JSON.stringify(remoto));
+          cfg.aplicar(remoto.dados);
+          avisa('ok', 'trouxe do servidor');
+        } else if (meu > (remoto ? remoto._atualizado : 0)) {
+          await api.empurrar();
+        } else {
+          avisa('ok', 'tudo em dia');
+        }
+      } catch (e) { avisa('erro', 'servidor fora do ar'); }
+      finally { sincronizando = false; }
+    },
+
+    /* chame uma vez, ao abrir */
+    async iniciar() {
+      const convite = leLink();
+      if (convite) {
+        api.configurar(convite.url, convite.codigo);
+        try { history.replaceState(null, '', location.pathname + location.search); }
+        catch (e) { location.hash = ''; }
+        avisa('ok', 'sincronia configurada');
+      }
+      addEventListener('online', () => api.sincroniza());
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) api.sincroniza(); });
+      addEventListener('pagehide', () => { if (ativo()) api.empurrar(); });
+      await api.sincroniza();
+    }
+  };
+
+  return api;
+}
+
+</script>
+<script>
 (function(){
   var KEY="semana:v7";
+
+  /* indicador de sincronia, canto inferior esquerdo */
+  var _sinal=null,_t=null;
+  function sinal(tipo,msg){
+    if(!_sinal){
+      _sinal=document.createElement('div');
+      _sinal.style.cssText='position:fixed;left:12px;bottom:14px;z-index:9999;font:12px -apple-system,sans-serif;'+
+        'padding:7px 12px;border-radius:99px;opacity:0;transition:opacity .2s;background:rgba(0,0,0,.75);'+
+        'color:#fff;pointer-events:none';
+      document.body.appendChild(_sinal);
+    }
+    _sinal.textContent=msg;
+    _sinal.style.color=(tipo==='erro')?'#ff8f94':'#fff';
+    _sinal.style.opacity='1';
+    clearTimeout(_t);
+    if(tipo!=='indo') _t=setTimeout(function(){ _sinal.style.opacity='0' }, tipo==='erro'?4000:1200);
+  }
+
   var MES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
   var DAYS=[["seg","Segunda"],["ter","Terça"],["qua","Quarta"],["qui","Quinta"],["sex","Sexta"],["sab","Sábado"],["dom","Domingo"]];
 
@@ -173,25 +347,6 @@
   var TODAY_K=kOf(mondayOf(new Date()));
   var TODAY_I=(new Date().getDay()+6)%7;
   function u(){ return "x"+Math.random().toString(36).slice(2,8) }
-
-  var PRIOS={r:"#B23B2E",o:"#D07C2A",y:"#C9A227",g:"#4F8A5B"};
-  var PORDER=[null,"r","o","y","g"];
-
-  var DRAG=null;
-  function clearMarks(){
-    Array.prototype.forEach.call(document.querySelectorAll('.over-top,.over-bottom,.rows.over'),function(el){
-      el.classList.remove('over-top','over-bottom','over');
-    });
-  }
-  function moveItem(src,item,dst,index){
-    var i=src.indexOf(item); if(i<0) return;
-    src.splice(i,1);
-    if(src===dst && i<index) index--;
-    if(index<0) index=0;
-    if(index>dst.length) index=dst.length;
-    dst.splice(index,0,item);
-    DRAG=null; clearMarks(); save(); paint();
-  }
 
   function template(){
     return {
@@ -215,7 +370,7 @@
       {id:"s5",name:"TCC",color:"#c77d31"},
       {id:"s6",name:"TUDO",color:"#6b5b8a"}
     ],
-    weeks:{}, active:null, sizes:{},
+    weeks:{}, active:null,
     boards:[{id:"b1",name:"Pendências",arch:false,cols:[
       {id:u(),name:"A fazer",rows:[]},
       {id:u(),name:"Fazendo",rows:[]},
@@ -238,11 +393,20 @@
   function liveBoards(){ return state.boards.filter(function(b){ return !b.arch }) }
   function board(){ return state.boards.filter(function(b){ return b.id===state.board })[0] }
 
-  function persist(){
-    var json=JSON.stringify(state);
-    try{ localStorage.setItem(KEY,json) }catch(e){}
-    if(window.storage){ try{ window.storage.set(KEY,json) }catch(e){} }
-  }
+  var sync=criaSync({
+    app:'planner', chave:KEY,
+    ler:function(){ return state },
+    aplicar:function(novo){
+      if(novo.subjects) state.subjects=novo.subjects;
+      if(novo.weeks) state.weeks=novo.weeks;
+      if(novo.boards && novo.boards.length){ state.boards=novo.boards; state.board=novo.board||state.boards[0].id }
+      if(novo.view) state.view=novo.view;
+      if(!board()) state.board=(liveBoards()[0]||state.boards[0]).id;
+      ensureWeek(); renderSubjects(); paint();
+    },
+    aviso:sinal
+  });
+  function persist(){ sync.salvar() }
   function save(){ clearTimeout(timer); timer=setTimeout(persist,300) }
 
   function editable(el,fn){
@@ -288,25 +452,14 @@
     var txt=document.createElement('div'); txt.className='txt'; txt.textContent=r.t||'';
     editable(txt,function(){ r.t=txt.textContent; save() });
 
-    if(opt){
-      var wrap=document.createElement('div'); wrap.className='ptop';
-      var pb=document.createElement('button'); pb.className='prio'; pb.title='prioridade';
-      var paintP=function(){
-        pb.style.background=r.p?PRIOS[r.p]:'transparent';
-        pb.style.borderColor=r.p?PRIOS[r.p]:'#C2C8BE';
-      };
-      paintP();
-      pb.addEventListener('click',function(){
-        var i=PORDER.indexOf(r.p||null);
-        r.p=PORDER[(i+1)%PORDER.length];
-        paintP(); save();
-      });
-      wrap.appendChild(txt); wrap.appendChild(pb);
-      body.appendChild(wrap);
+    if(opt && !r.s){
+      var tagBtn=document.createElement('button'); tagBtn.className='tagbtn'; tagBtn.textContent='+ matéria';
+      tagBtn.addEventListener('click',function(){ tagBtn.remove(); body.insertBefore(pick,txt); pick.focus() });
+      body.appendChild(tagBtn);
     } else {
       body.appendChild(pick);
-      body.appendChild(txt);
     }
+    body.appendChild(txt);
 
     var del=document.createElement('button'); del.className='x'; del.textContent='×';
     del.addEventListener('click',function(){
@@ -315,36 +468,6 @@
     });
 
     li.appendChild(cb); li.appendChild(body); li.appendChild(del);
-
-    var grip=document.createElement('button');
-    grip.className='grip'; grip.type='button'; grip.textContent='⠿'; grip.title='arrastar';
-    grip.addEventListener('mousedown',function(){ li.draggable=true });
-    li.insertBefore(grip,cb);
-
-    li.addEventListener('dragstart',function(e){
-      DRAG={arr:arr,r:r};
-      li.classList.add('dragging');
-      e.dataTransfer.effectAllowed='move';
-      try{ e.dataTransfer.setData('text/plain','') }catch(_){}
-    });
-    li.addEventListener('dragend',function(){
-      li.classList.remove('dragging'); li.draggable=false; DRAG=null; clearMarks();
-    });
-    li.addEventListener('dragover',function(e){
-      if(!DRAG||DRAG.r===r) return;
-      e.preventDefault(); e.stopPropagation();
-      var b=li.getBoundingClientRect(), after=(e.clientY-b.top)>b.height/2;
-      li.classList.toggle('over-top',!after);
-      li.classList.toggle('over-bottom',after);
-    });
-    li.addEventListener('dragleave',function(){ li.classList.remove('over-top','over-bottom') });
-    li.addEventListener('drop',function(e){
-      if(!DRAG) return;
-      e.preventDefault(); e.stopPropagation();
-      var b=li.getBoundingClientRect(), after=(e.clientY-b.top)>b.height/2;
-      moveItem(DRAG.arr,DRAG.r,arr,arr.indexOf(r)+(after?1:0));
-    });
-
     return li;
   }
 
@@ -362,18 +485,6 @@
 
     var ul=document.createElement('ul'); ul.className='rows';
     arr.forEach(function(r){ ul.appendChild(makeRow(arr,r,opts.optSubject)) });
-    ul.addEventListener('dragover',function(e){
-      if(!DRAG) return;
-      e.preventDefault(); ul.classList.add('over');
-    });
-    ul.addEventListener('dragleave',function(e){
-      if(!ul.contains(e.relatedTarget)) ul.classList.remove('over');
-    });
-    ul.addEventListener('drop',function(e){
-      if(!DRAG) return;
-      e.preventDefault(); ul.classList.remove('over');
-      moveItem(DRAG.arr,DRAG.r,arr,arr.length);
-    });
     card.appendChild(ul);
 
     var add=document.createElement('button'); add.className='btn add'; add.textContent='+';
@@ -388,35 +499,14 @@
   }
 
   /* ---------- telas ---------- */
-  function resizable(card,getter,setter){
-    if(!window.ResizeObserver) return;
-    var t=null;
-    new ResizeObserver(function(){
-      clearTimeout(t);
-      t=setTimeout(function(){
-        var w=card.offsetWidth, h=card.offsetHeight, cur=getter();
-        if(w!==cur.w || h!==cur.h){ setter(w,h); save() }
-      },250);
-    }).observe(card);
-  }
-
   function renderDays(){
-    grid.className='grid board';
+    grid.className='grid';
     grid.innerHTML='';
     var start=dOf(state.active);
     DAYS.forEach(function(d,i){
       var date=new Date(start); date.setDate(date.getDate()+i);
       var head='<span>'+d[1]+'</span><span class="dt">'+date.getDate()+'/'+pad(date.getMonth()+1)+'</span>';
-      var card=column(head, week().days[d[0]], {today:(state.active===TODAY_K && i===TODAY_I)});
-
-      var sz=state.sizes[d[0]]||{};
-      card.style.width=(sz.w||274)+'px';
-      if(sz.h) card.style.height=sz.h+'px';
-      resizable(card,
-        function(){ return state.sizes[d[0]]||{} },
-        function(w,h){ state.sizes[d[0]]={w:w,h:h} });
-
-      grid.appendChild(card);
+      grid.appendChild(column(head, week().days[d[0]], {today:(state.active===TODAY_K && i===TODAY_I)}));
     });
   }
 
@@ -435,9 +525,17 @@
 
       card.style.width=(col.w||270)+'px';
       if(col.h) card.style.height=col.h+'px';
-      resizable(card,
-        function(){ return col },
-        function(w,h){ col.w=w; col.h=h });
+
+      if(window.ResizeObserver){
+        var t=null;
+        new ResizeObserver(function(){
+          clearTimeout(t);
+          t=setTimeout(function(){
+            var w=card.offsetWidth, h=card.offsetHeight;
+            if(w!==col.w || h!==col.h){ col.w=w; col.h=h; save() }
+          },250);
+        }).observe(card);
+      }
 
       grid.appendChild(card);
     });
@@ -661,24 +759,17 @@
   }
 
   (async function(){
-    var raw=null;
-    try{ raw=localStorage.getItem(KEY) }catch(e){}
-    if(!raw && window.storage){
-      try{ var r=await window.storage.get(KEY); if(r&&r.value) raw=r.value }catch(e){}
-    }
-    if(raw){
-      try{
-        var p=JSON.parse(raw);
-        if(p.subjects) state.subjects=p.subjects;
-        if(p.weeks) state.weeks=p.weeks;
-        if(p.sizes) state.sizes=p.sizes;
-        if(p.boards && p.boards.length){ state.boards=p.boards; state.board=p.board||state.boards[0].id }
-        if(p.view) state.view=p.view;
-      }catch(e){}
+    var p=sync.carregar();
+    if(p){
+      if(p.subjects) state.subjects=p.subjects;
+      if(p.weeks) state.weeks=p.weeks;
+      if(p.boards && p.boards.length){ state.boards=p.boards; state.board=p.board||state.boards[0].id }
+      if(p.view) state.view=p.view;
     }
     if(!board()) state.board=(liveBoards()[0]||state.boards[0]).id;
     ensureWeek();
     renderSubjects(); paint(); save();
+    sync.iniciar();
   })();
 })();
 </script>
