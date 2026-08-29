@@ -864,7 +864,14 @@ function sinal(tipo,msg){
 const sync = criaSync({
   app:'grana', chave:'controle_grana',
   ler: () => data,
-  aplicar: (novo) => { data = novo; try{ renderAll(); }catch(e){} },
+  aplicar: (novo) => {
+    data = novo;
+    try{
+      if (!data.months.some(m => m.id === currentMonth))
+        currentMonth = data.months.length ? data.months[data.months.length-1].id : null;
+      renderAll();
+    }catch(e){}
+  },
   aviso: sinal
 });
 
@@ -2115,6 +2122,9 @@ document.querySelectorAll('.money-input-mask').forEach(el => {
 
 if (data.months.length) currentMonth = data.months[data.months.length-1].id;
 renderAll();
+
+/* puxa do servidor e passa a ouvir (volta de aba, reconexão) */
+sync.iniciar();
 
 </script>
 
