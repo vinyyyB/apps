@@ -678,9 +678,197 @@
 </div>
 
 <script>
+/* ---- sincronia entre aparelhos ---- */
+/* sync.js — sincronia entre aparelhos para apps HTML de uma página só.
+ *
+ * Como usar, dentro do seu app:
+ *
+ *   const sync = criaSync({
+ *     app: 'financas',            // vira o caminho no servidor: /financas
+ *     chave: 'financas:v1',       // onde guarda no navegador
+ *     ler:     ()      => estado, // devolve o objeto que você quer salvar
+ *     aplicar: (novo)  => { estado = novo; render(); },
+ *     aviso:   (tipo,msg) => console.log(tipo, msg)   // opcional
+ *   });
+ *
+ *   estado = sync.carregar() || estadoInicial();   // ao abrir
+ *   await sync.iniciar();                          // lê link e puxa do servidor
+ *   ...
+ *   sync.salvar();   // chame depois de QUALQUER alteração
+ *
+ * Para ligar: sync.configurar('https://SEU-WORKER.workers.dev', 'seu-codigo')
+ * A configuração é compartilhada por todos os apps do mesmo domínio —
+ * configurou num, valeu pra todos.
+ */
+
+function criaSync(cfg) {
+  const CONF = 'sync:conf';          // endereço + código, comum a todos os apps
+  const avisa = (t, m) => { try { cfg.aviso && cfg.aviso(t, m); } catch (e) {} };
+
+  const lerLocal = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const gravarLocal = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
+
+  const conf = () => { try { return JSON.parse(lerLocal(CONF) || '{}'); } catch (e) { return {}; } };
+  const ativo = () => { const c = conf(); return !!(c.url && c.codigo); };
+  const endereco = () => conf().url.replace(/\/+$/, '') + '/' + cfg.app;
+
+  let empurrando = null, sincronizando = false;
+
+  /* --- envelope: seus dados + o carimbo de hora --- */
+  const embrulha = dados => JSON.stringify({ _v: 1, _atualizado: Date.now(), dados });
+  function desembrulha(txt) {
+    try {
+      const o = JSON.parse(txt);
+      if (o && o._v === 1 && 'dados' in o) return o;
+      return null;
+    } catch (e) { return null; }
+  }
+  const quando = () => { const o = desembrulha(lerLocal(cfg.chave) || ''); return o ? o._atualizado : 0; };
+
+  /* --- link do tipo  #sync=<base64>  --- */
+  function empacota(url, codigo) {
+    return btoa(unescape(encodeURIComponent(url + '|' + codigo))).replace(/=+$/, '');
+  }
+  function leLink() {
+    const m = (location.hash || '').match(/^#sync=(.+)$/);
+    if (!m) return null;
+    try {
+      const txt = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+      const i = txt.indexOf('|');
+      const url = txt.slice(0, i), codigo = txt.slice(i + 1);
+      if (url && codigo) return { url, codigo };
+    } catch (e) {}
+    return null;
+  }
+
+  const api = {
+    ativo,
+    config: conf,
+
+    configurar(url, codigo) {
+      if (url && codigo) gravarLocal(CONF, JSON.stringify({ url: url.replace(/\/+$/, ''), codigo }));
+      else gravarLocal(CONF, '{}');
+      return ativo();
+    },
+
+    /* link que já entra configurado em outro aparelho ou pra outra pessoa */
+    link(codigo) {
+      const c = conf();
+      if (!c.url) return '';
+      return location.origin + location.pathname + '#sync=' + empacota(c.url, codigo || c.codigo);
+    },
+
+    /* Lê o que está guardado neste aparelho.
+       Se encontrar dado no formato antigo (sem carimbo de hora), adota e
+       carimba na hora — senão ele nunca ganharia do servidor vazio. */
+    carregar() {
+      const raw = lerLocal(cfg.chave);
+      if (!raw) return null;
+      const o = desembrulha(raw);
+      if (o) return o.dados;
+      try {
+        const legado = JSON.parse(raw);
+        if (legado && typeof legado === 'object') {
+          gravarLocal(cfg.chave, embrulha(legado));
+          return legado;
+        }
+      } catch (e) {}
+      return null;
+    },
+
+    salvar() {
+      const ok = gravarLocal(cfg.chave, embrulha(cfg.ler()));
+      if (!ok) avisa('erro', 'este navegador não guardou os dados');
+      if (ativo()) { clearTimeout(empurrando); empurrando = setTimeout(api.empurrar, 1800); }
+      return ok;
+    },
+
+    async empurrar() {
+      if (!ativo()) return false;
+      avisa('indo', 'enviando');
+      try {
+        const r = await fetch(endereco(), {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json', 'x-codigo': conf().codigo },
+          body: lerLocal(cfg.chave)
+        });
+        if (r.status === 401) { avisa('erro', 'código recusado'); return false; }
+        if (!r.ok) throw 0;
+        avisa('ok', 'sincronizado');
+        return true;
+      } catch (e) { avisa('erro', 'sem conexão'); return false; }
+    },
+
+    async sincroniza() {
+      if (!ativo() || sincronizando) return;
+      sincronizando = true;
+      avisa('indo', 'sincronizando');
+      try {
+        const r = await fetch(endereco(), { headers: { 'x-codigo': conf().codigo }, cache: 'no-store' });
+        if (r.status === 401) { avisa('erro', 'código recusado'); return; }
+        if (!r.ok) throw 0;
+        const remoto = desembrulha(await r.text());
+        const meu = quando();
+        if (remoto && remoto._atualizado > meu) {
+          gravarLocal(cfg.chave, JSON.stringify(remoto));
+          cfg.aplicar(remoto.dados);
+          avisa('ok', 'trouxe do servidor');
+        } else if (meu > (remoto ? remoto._atualizado : 0)) {
+          await api.empurrar();
+        } else {
+          avisa('ok', 'tudo em dia');
+        }
+      } catch (e) { avisa('erro', 'servidor fora do ar'); }
+      finally { sincronizando = false; }
+    },
+
+    /* chame uma vez, ao abrir */
+    async iniciar() {
+      const convite = leLink();
+      if (convite) {
+        api.configurar(convite.url, convite.codigo);
+        try { history.replaceState(null, '', location.pathname + location.search); }
+        catch (e) { location.hash = ''; }
+        avisa('ok', 'sincronia configurada');
+      }
+      addEventListener('online', () => api.sincroniza());
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) api.sincroniza(); });
+      addEventListener('pagehide', () => { if (ativo()) api.empurrar(); });
+      await api.sincroniza();
+    }
+  };
+
+  return api;
+}
+
+</script>
+<script>
 // ===== STATE =====
 const MONTH_NAMES_PT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-let data = JSON.parse(localStorage.getItem('controle_grana') || '{"months":[]}');
+var _sinal=null,_t=null;
+function sinal(tipo,msg){
+  if(!_sinal){
+    _sinal=document.createElement('div');
+    _sinal.style.cssText='position:fixed;left:12px;bottom:14px;z-index:9999;font:12px -apple-system,sans-serif;'+
+      'padding:7px 12px;border-radius:99px;opacity:0;transition:opacity .2s;background:rgba(0,0,0,.75);'+
+      'color:#fff;pointer-events:none';
+    document.body.appendChild(_sinal);
+  }
+  _sinal.textContent=msg;
+  _sinal.style.color=(tipo==='erro')?'#ff8f94':'#fff';
+  _sinal.style.opacity='1';
+  clearTimeout(_t);
+  if(tipo!=='indo') _t=setTimeout(function(){ _sinal.style.opacity='0' }, tipo==='erro'?4000:1200);
+}
+
+const sync = criaSync({
+  app:'grana', chave:'controle_grana',
+  ler: () => data,
+  aplicar: (novo) => { data = novo; try{ renderAll(); }catch(e){} },
+  aviso: sinal
+});
+
+let data = sync.carregar() || {months:[]};
 let currentMonth = null;
 let editingExpenseId = null;
 let editingPixId = null;
@@ -749,7 +937,7 @@ if (!data.categories) {
   save();
 }
 
-function save() { localStorage.setItem('controle_grana', JSON.stringify(data)); }
+function save() { sync.salvar(); }
 
 // ===== TEMAS LOGIC =====
 function openSettingsModal() {
