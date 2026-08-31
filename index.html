@@ -84,6 +84,21 @@
     <div class="aviso" id="aviso"></div>
   </div>
 
+  <h2 style="margin-top:30px">Versões anteriores</h2>
+  <div class="cartao">
+    <p class="nota" style="margin:0 0 12px">Se uma sincronia apagar algo por engano, o servidor guarda as últimas
+      versões de cada app. Escolhe o app, veja as datas e restaura a que você quer de volta.</p>
+    <div class="campo"><label>App</label>
+      <select id="h-app">
+        <option value="padrao">Caderneta</option>
+        <option value="planner">Planner</option>
+        <option value="grana">Grana</option>
+      </select>
+    </div>
+    <button class="btn ghost" id="h-listar">Ver versões salvas</button>
+    <div id="h-lista" style="margin-top:12px"></div>
+  </div>
+
   <h2 style="margin-top:30px">Link pra outro aparelho</h2>
   <div class="cartao">
     <div class="campo"><label>Código de quem vai usar</label>
@@ -157,6 +172,54 @@ $('copiar').onclick=function(){
 })();
 
 pinta();
+
+/* ---- versões anteriores ---- */
+function fmtData(ts){
+  const d=new Date(ts);
+  return d.toLocaleDateString('pt-BR')+' às '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+function fmtTam(n){ return n<1024 ? n+' B' : (n/1024).toFixed(1)+' KB'; }
+
+$('h-listar').onclick=async function(){
+  const c=conf();
+  if(!c.url||!c.codigo) return fala('erro','Configure a sincronização primeiro');
+  const app=$('h-app').value;
+  const lista=$('h-lista');
+  lista.innerHTML='<p class="nota">Buscando…</p>';
+  try{
+    const r=await fetch(c.url+'/'+app+'/historico',{headers:{'x-codigo':c.codigo}});
+    if(r.status===401){ lista.innerHTML=''; return fala('erro','Código recusado'); }
+    if(!r.ok) throw 0;
+    const j=await r.json();
+    if(!j.versoes || !j.versoes.length){
+      lista.innerHTML='<p class="nota">Nenhuma versão anterior guardada ainda pra esse app.</p>';
+      return;
+    }
+    lista.innerHTML=j.versoes.map(v=>
+      `<div class="app" style="margin-bottom:9px;cursor:default">
+        <span class="risco" style="background:var(--dim)"></span>
+        <span><b style="font-size:14px">${fmtData(v.ts)}</b><span>${fmtTam(v.tamanho)}</span></span>
+        <button class="btn ghost" style="margin:0;padding:9px 14px" data-ts="${v.ts}" data-app="${app}">Restaurar</button>
+      </div>`
+    ).join('');
+  }catch(e){ lista.innerHTML=''; fala('erro','Servidor fora do ar'); }
+};
+
+document.addEventListener('click', async function(ev){
+  const btn=ev.target.closest('[data-ts]');
+  if(!btn) return;
+  const c=conf(), app=btn.dataset.app, ts=btn.dataset.ts;
+  if(!confirm('Trocar os dados atuais do app por essa versão de '+fmtData(+ts)+'?\n\nO que está lá agora não se perde — vira uma versão anterior também, e dá pra desfazer voltando aqui.')) return;
+  try{
+    const r=await fetch(c.url+'/'+app+'/historico/'+ts,{headers:{'x-codigo':c.codigo}});
+    if(!r.ok) throw 0;
+    const conteudo=await r.text();
+    const r2=await fetch(c.url+'/'+app,{method:'PUT',headers:{'content-type':'application/json','x-codigo':c.codigo},body:conteudo});
+    if(!r2.ok) throw 0;
+    fala('ok','Restaurado. Abra o app pra ver — pode levar um instante pra puxar.');
+    $('h-listar').click();
+  }catch(e){ fala('erro','Não deu pra restaurar — tenta de novo'); }
+});
 </script>
 </body>
 </html>
