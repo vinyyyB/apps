@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Caderneta">
+<meta name="apple-mobile-web-app-title" content="Faltas">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0E1116">
-<title>Caderneta — controle de faltas</title>
+<title>Controle de Faltas</title>
 <style>
   :root{
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
@@ -498,7 +498,7 @@ function render(){
 
 function renderHome(){
   $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
-    <div class="brand">Caderneta<small>Controle de faltas</small></div>
+    <div class="brand">Controle de Faltas<small>Por matéria</small></div>
     <div class="spacer"></div><button class="tbtn" data-act="settings">Ajustes</button>`;
   if(!state.subjects.length){
     $app.innerHTML=`<div class="empty"><b>Nenhuma matéria ainda</b>Cadastre a carga horária e os dias de aula — as datas aparecem sozinhas.</div>`;
@@ -828,7 +828,7 @@ function sheetSettings(){
       <button class="btn ghost" data-act="save-semana">Salvar semana inicial</button></div>
     <button class="btn ghost" data-act="toggle-cwb">Feriados de Curitiba: ${state.settings.curitiba?'incluídos':'desligados'}</button>
     <div class="field" style="margin-top:18px"><label>Sincronizar entre aparelhos</label>
-      <input id="y-url" value="${esc(cfgSync().url||'')}" placeholder="https://caderneta.SEU-NOME.workers.dev">
+      <input id="y-url" value="${esc(cfgSync().url||'')}" placeholder="https://faltas.SEU-NOME.workers.dev">
       <input id="y-cod" style="margin-top:9px" value="${esc(cfgSync().codigo||'')}" placeholder="seu código secreto">
       <div class="two" style="margin-top:9px">
         <button class="btn ghost" style="margin-top:0" data-act="salvar-sync">Salvar</button>
@@ -1000,7 +1000,7 @@ document.addEventListener('click',ev=>{
     }
     case 'baixar':{
       const url=URL.createObjectURL(new Blob([JSON.stringify(state,null,1)],{type:'application/json'}));
-      const a=document.createElement('a'); a.href=url; a.download='caderneta-'+todayIso+'.json'; a.click();
+      const a=document.createElement('a'); a.href=url; a.download='controle-faltas-'+todayIso+'.json'; a.click();
       setTimeout(()=>URL.revokeObjectURL(url),2000);
       return toast('Backup baixado');
     }
