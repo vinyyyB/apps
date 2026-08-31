@@ -922,7 +922,10 @@ if (!data.categories) {
     { id: 'c6', name: 'Vestuário', color: '#e2e5f0' },
     { id: 'c7', name: 'Outros', color: '#565f7e' }
   ];
-  save();
+  // Arrumação de abertura, não uma edição real — não pode carimbar hora
+  // nova, senão um aparelho vazio (aba nova, teste) vence o servidor e
+  // apaga dados de verdade. Ver sync.salvarQuieto().
+  sync.salvarQuieto();
 }
 
 function save() { sync.salvar(); }
