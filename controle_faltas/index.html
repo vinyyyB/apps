@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-title" content="Caderneta">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0E1116">
-<title>Controle de faltas</title>
+<title>Caderneta — controle de faltas</title>
 <style>
   :root{
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
@@ -307,7 +307,19 @@ function enderecoDoApp(){
 }
 
 let pushT=null, sincronizando=false;
-const cfgSync=()=>(state&&state.settings&&state.settings.sync)||{};
+const CONF_COMUM='sync:conf';   // mesmo lugar que o planner e o grana leem
+function confComum(){
+  try{ return JSON.parse(localStorage.getItem(CONF_COMUM)||'{}') }catch(e){ return {} }
+}
+function gravaComum(c){
+  try{ localStorage.setItem(CONF_COMUM, JSON.stringify(c&&c.url&&c.codigo?{url:c.url,codigo:c.codigo}:{})) }catch(e){}
+}
+const cfgSync=()=>{
+  const meu=(state&&state.settings&&state.settings.sync)||null;
+  if(meu&&meu.url&&meu.codigo) return meu;
+  const c=confComum();                       // configurou na página inicial? adota
+  return (c.url&&c.codigo)?c:{};
+};
 function syncAtivo(){ const c=cfgSync(); return !!(c.url&&c.codigo); }
 
 async function empurra(){
@@ -485,7 +497,8 @@ function render(){
 }
 
 function renderHome(){
-  $top.innerHTML=`<div class="brand">Caderneta<small>Controle de faltas</small></div>
+  $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
+    <div class="brand">Caderneta<small>Controle de faltas</small></div>
     <div class="spacer"></div><button class="tbtn" data-act="settings">Ajustes</button>`;
   if(!state.subjects.length){
     $app.innerHTML=`<div class="empty"><b>Nenhuma matéria ainda</b>Cadastre a carga horária e os dias de aula — as datas aparecem sozinhas.</div>`;
@@ -605,7 +618,8 @@ function renderSubject(){
   const sub=state.subjects.find(x=>x.id===view.id);
   if(!sub){view={name:'home'};return render();}
   const s=stats(sub), t=tone(s);
-  $top.innerHTML=`<button class="tbtn" data-act="home">‹ Matérias</button><div class="spacer"></div>
+  $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
+    <button class="tbtn" data-act="home">‹ Matérias</button><div class="spacer"></div>
     <button class="tbtn" data-act="edit" data-id="${sub.id}">Editar</button>`;
 
   const maxSlots=Math.max(...Object.values(sub.days));
@@ -953,6 +967,7 @@ document.addEventListener('click',ev=>{
       const codigo=document.getElementById('y-cod').value.trim();
       if(!state.settings) state.settings={curitiba:true};
       state.settings.sync = (url&&codigo)?{url,codigo}:null;
+      gravaComum(state.settings.sync);
       save(false);
       closeSheet();
       if(syncAtivo()){ toast('Sincronia ligada'); sincroniza(true); }
@@ -963,7 +978,7 @@ document.addEventListener('click',ev=>{
       const url=document.getElementById('y-url').value.trim().replace(/\/+$/,'');
       const codigo=document.getElementById('y-cod').value.trim();
       if(!url||!codigo) return toast('Preencha endereço e código');
-      state.settings.sync={url,codigo}; save(false);
+      state.settings.sync={url,codigo}; gravaComum(state.settings.sync); save(false);
       closeSheet(); return sincroniza(true);
     }
     case 'gerar-link': return sheetLink();
@@ -1063,8 +1078,13 @@ document.addEventListener('change',ev=>{
   const convite=leLinkSync();
   if(convite){
     state.settings.sync=convite;
+    gravaComum(convite);
     save(false);
     limpaHash();
+  }
+  if(!(state.settings.sync&&state.settings.sync.url)){
+    const c=confComum();
+    if(c.url&&c.codigo){ state.settings.sync=c; save(false); }
   }
   applyTheme(state.settings.tema);
   render();
