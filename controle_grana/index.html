@@ -41,7 +41,7 @@
 
   /* HEADER */
   header {
-    background: var(--surface2); /* Fundo sólido adaptável ao tema */
+    background: var(--surface2);
     border-bottom: 1px solid var(--border);
     padding: 20px 24px 0;
     position: sticky;
@@ -123,7 +123,7 @@
 	.month-tab { cursor: grab; }
 	.month-tab:active { cursor: grabbing; }
 	.month-tab.dragging { opacity: 0.5; background: var(--surface2); border: 1px dashed var(--muted); }
-    background: var(--bg); /* Tab ativa se mescla ao fundo */
+    background: var(--bg);
     color: var(--text);
     border-color: var(--border);
     border-bottom-color: var(--bg);
@@ -436,7 +436,6 @@
 
 <header>
   <div class="header-top">
-    <!-- Adicionamos apenas o botão de abrir a sidebar aqui, junto com a logo -->
     <div class="logo">
       <button class="btn btn-ghost" onclick="openSidebar()" style="padding: 4px 8px; margin-right: 4px;" title="Gerenciar Meses">
         <i class="fa-solid fa-bars"></i>
@@ -447,7 +446,6 @@
       <i class="fa-solid fa-arrow-left"></i> Apps
     </a>
     
-    <!-- Seus botões originais mantidos intactos -->
     <div class="header-actions">
       <button class="btn btn-ghost" onclick="openSettingsModal()" title="Temas e Cores"><i class="fa-solid fa-palette"></i> Temas</button>
       <button class="btn btn-ghost" onclick="openCatModal()" title="Gerenciar Categorias"><i class="fa-solid fa-tags"></i> Categorias</button>
@@ -682,30 +680,8 @@
 
 <script>
 /* ---- sincronia entre aparelhos ---- */
-/* sync.js — sincronia entre aparelhos para apps HTML de uma página só.
- *
- * Como usar, dentro do seu app:
- *
- *   const sync = criaSync({
- *     app: 'financas',            // vira o caminho no servidor: /financas
- *     chave: 'financas:v1',       // onde guarda no navegador
- *     ler:     ()      => estado, // devolve o objeto que você quer salvar
- *     aplicar: (novo)  => { estado = novo; render(); },
- *     aviso:   (tipo,msg) => console.log(tipo, msg)   // opcional
- *   });
- *
- *   estado = sync.carregar() || estadoInicial();   // ao abrir
- *   await sync.iniciar();                          // lê link e puxa do servidor
- *   ...
- *   sync.salvar();   // chame depois de QUALQUER alteração
- *
- * Para ligar: sync.configurar('https://SEU-WORKER.workers.dev', 'seu-codigo')
- * A configuração é compartilhada por todos os apps do mesmo domínio —
- * configurou num, valeu pra todos.
- */
-
 function criaSync(cfg) {
-  const CONF = 'sync:conf';          // endereço + código, comum a todos os apps
+  const CONF = 'sync:conf';
   const avisa = (t, m) => { try { cfg.aviso && cfg.aviso(t, m); } catch (e) {} };
 
   const lerLocal = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -717,7 +693,6 @@ function criaSync(cfg) {
 
   let empurrando = null, sincronizando = false;
 
-  /* --- envelope: seus dados + o carimbo de hora --- */
   const embrulha = dados => JSON.stringify({ _v: 1, _atualizado: Date.now(), dados });
   function desembrulha(txt) {
     try {
@@ -728,7 +703,6 @@ function criaSync(cfg) {
   }
   const quando = () => { const o = desembrulha(lerLocal(cfg.chave) || ''); return o ? o._atualizado : 0; };
 
-  /* --- link do tipo  #sync=<base64>  --- */
   function empacota(url, codigo) {
     return btoa(unescape(encodeURIComponent(url + '|' + codigo))).replace(/=+$/, '');
   }
@@ -754,16 +728,12 @@ function criaSync(cfg) {
       return ativo();
     },
 
-    /* link que já entra configurado em outro aparelho ou pra outra pessoa */
     link(codigo) {
       const c = conf();
       if (!c.url) return '';
       return location.origin + location.pathname + '#sync=' + empacota(c.url, codigo || c.codigo);
     },
 
-    /* Lê o que está guardado neste aparelho.
-       Se encontrar dado no formato antigo (sem carimbo de hora), adota e
-       carimba na hora — senão ele nunca ganharia do servidor vazio. */
     carregar() {
       const raw = lerLocal(cfg.chave);
       if (!raw) return null;
@@ -779,9 +749,6 @@ function criaSync(cfg) {
       return null;
     },
 
-    /* Grava sem mexer no carimbo de hora. É pra arrumação de abertura
-       (criar a semana atual, escolher um quadro padrão) — não é alteração
-       de verdade e não pode vencer o que está no servidor. */
     salvarQuieto() {
       gravarLocal(cfg.chave, JSON.stringify({ _v: 1, _atualizado: quando(), dados: cfg.ler() }));
     },
@@ -832,7 +799,6 @@ function criaSync(cfg) {
       finally { sincronizando = false; }
     },
 
-    /* chame uma vez, ao abrir */
     async iniciar() {
       const convite = leLink();
       if (convite) {
@@ -851,7 +817,6 @@ function criaSync(cfg) {
 
   return api;
 }
-
 </script>
 <script>
 // ===== STATE =====
@@ -896,6 +861,14 @@ let sortCol = 'category';
 let sortDir = 1;
 let myChart = null;
 
+// Escapa texto pra caber dentro de um onclick="...('...')" sem quebrar
+// quando o nome tem aspa simples (ex: "Presente da Mãe's")
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
 // Garante que tema e as cores personalizadas existam na memória
 if (!data.theme) data.theme = 'default';
 if (!data.customTheme) data.customTheme = { header: '#1e2130', bg: '#0f1117', accent: '#7c5cfc' };
@@ -913,17 +886,15 @@ function applyTheme(themeName) {
   let t;
 
   if (themeName === 'custom') {
-    // Se for personalizado, puxa os valores salvos no customTheme
     t = {
       bg: data.customTheme.bg,
       surface: data.customTheme.header,
       surface2: data.customTheme.header,
       accent: data.customTheme.accent,
       accent2: data.customTheme.accent,
-      border: 'rgba(255,255,255,0.1)' // Borda sutil automática
+      border: 'rgba(255,255,255,0.1)'
     };
   } else {
-    // Puxa da paleta pronta
     t = themePalettes[themeName] || themePalettes.default;
   }
 
@@ -939,7 +910,6 @@ function applyTheme(themeName) {
   if(metaTheme) metaTheme.setAttribute("content", t.surface2);
 }
 
-// Inicializa a cor ao abrir
 applyTheme(data.theme);
 
 if (!data.categories) {
@@ -1017,7 +987,6 @@ function setMoneyValue(id, value) {
 
 function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
 
-// Retorna um pequeno ícone indicando que o item já foi editado (data completa só no hover)
 function lastEditBadge(item) {
   if (!item.updatedAt || !item.ts || item.updatedAt <= item.ts) return '';
   const d = new Date(item.updatedAt).toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'});
@@ -1221,12 +1190,12 @@ function renderTabs() {
   const tabs = document.getElementById('month-tabs');
   tabs.innerHTML = '';
   data.months.forEach(m => {
-    if (m.archived) return; // Se for arquivado, não aparece na barra superior
+    if (m.archived) return;
     const btn = document.createElement('button');
     btn.className = 'month-tab' + (m.id === currentMonth ? ' active' : '');
     btn.textContent = m.name;
     btn.dataset.id = m.id;
-    btn.draggable = true; // Ativa o drag & drop na aba
+    btn.draggable = true;
     btn.onclick = () => { currentMonth = m.id; renderAll(); };
     tabs.appendChild(btn);
   });
@@ -1251,7 +1220,6 @@ function initDragAndDropTabs() {
     item.addEventListener('dragover', function(e) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      // Usa o eixo X (clientX) para drag horizontal
       const afterElement = getDragAfterElementTabs(container, e.clientX);
       if (afterElement == null) {
         container.appendChild(dragEl);
@@ -1271,7 +1239,7 @@ function getDragAfterElementTabs(container, x) {
   const draggableElements = [...container.querySelectorAll('.month-tab:not(.dragging)')];
   return draggableElements.reduce((closest, child) => {
     const box = child.getBoundingClientRect();
-    const offset = x - box.left - box.width / 2; // Eixo horizontal
+    const offset = x - box.left - box.width / 2;
     if (offset < 0 && offset > closest.offset) {
       return { offset: offset, element: child };
     } else {
@@ -1295,7 +1263,7 @@ function updateMonthsOrderTabs() {
   
   data.months = [...newActives, ...archived];
   save();
-  renderSidebarDrawer(); // Atualiza a gaveta silenciosamente
+  renderSidebarDrawer();
 }
 
 function renderSidebarDrawer() {
@@ -1307,7 +1275,6 @@ function renderSidebarDrawer() {
 
   data.months.forEach((m) => {
     const div = document.createElement('div');
-    // Removemos o cursor grab do CSS dinâmico e o draggable, deixando só estático na sidebar
     div.className = 'month-item' + (m.id === currentMonth ? ' active' : '') + (m.archived ? ' archived' : '');
     div.dataset.id = m.id;
     div.style.cursor = 'default';
@@ -1430,13 +1397,10 @@ function renderAll() {
   const totalPix       = month.pix.reduce((s,p) => s + (Number(p.value)||0), 0);
   const totalIncome    = month.income.reduce((s,i) => s + (Number(i.value)||0), 0);
   
-  // Sobra Estimada: quanto deve sobrar considerando o que foi planejado gastar (estimativa inicial)
   const sobraEstimada = totalIncome - totalEstimated - totalPix;
-  // Sobra Atual: quanto deve sobrar considerando os gastos futuros já previstos
   const sobraAtual    = totalIncome - totalFuture - totalPix;
 
-  // === INÍCIO CÁLCULO DE STATUS DA FATURA ===
-  const closingDay = month.closingDay || 29; // Fallback pra 29 nos meses antigos
+  const closingDay = month.closingDay || 29;
   let invoiceStatusHtml = '';
 
   const lowerName = (month.name || '').toLowerCase();
@@ -1451,7 +1415,7 @@ function renderAll() {
     if (year < 100) year += 2000;
 
     const now = new Date(); 
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Sem horas, só dia
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const closingDate = new Date(year, monthIdx, closingDay);
     
     const diffTime = closingDate.getTime() - today.getTime();
@@ -1471,12 +1435,10 @@ function renderAll() {
       </div>`;
     }
   } else {
-    // Se ele não entender o nome do mês (ex: "Viagem SP")
     invoiceStatusHtml = `<div onclick="editClosingDay('${month.id}')" style="${badgeStyle} background: var(--surface2); border: 1px solid var(--border); color: var(--text2);" ${hoverEffect}>
       <i class="fa-solid fa-calendar-day"></i> Fatura fecha dia ${closingDay} <i class="fa-solid fa-pen" style="font-size:10px; margin-left:2px; opacity:0.7"></i>
     </div>`;
   }
-  // === FIM CÁLCULO DE STATUS DA FATURA ===
 
   main.innerHTML = `
     <div class="dashboard-layout">
@@ -1551,7 +1513,7 @@ function renderAll() {
                   <td style="color:var(--text2);font-size:12px">${exp.obs || '—'}</td>
                   <td>${getStatusHtml(exp)}</td>
                   <td class="row-actions">
-                    <button class="btn btn-ghost btn-sm" onclick="openQuickAdd('expense', '${exp.id}', '${exp.name}')" style="color: var(--ok);" title="Soma Rápida"><i class="fa-solid fa-plus"></i></button>
+                    <button class="btn btn-ghost btn-sm" onclick="openQuickAdd('expense', '${exp.id}', '${esc(exp.name)}')" style="color: var(--ok);" title="Soma Rápida"><i class="fa-solid fa-plus"></i></button>
                     <button class="btn btn-ghost btn-sm" onclick="editExpense('${exp.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
                     <button class="btn btn-danger btn-sm" onclick="deleteExpense('${exp.id}')" title="Excluir"><i class="fa-solid fa-xmark"></i></button>
                   </td>
@@ -1600,7 +1562,7 @@ function renderAll() {
                 <td class="right money" style="color:var(--danger)">${fmt(p.value)}</td>
                 <td style="color:var(--text2);font-size:12px">${p.obs || '—'}</td>
                 <td class="row-actions">
-                  <button class="btn btn-ghost btn-sm" onclick="openQuickAdd('pix', '${p.id}', '${p.name}')" style="color: var(--ok);" title="Soma Rápida"><i class="fa-solid fa-plus"></i></button>
+                  <button class="btn btn-ghost btn-sm" onclick="openQuickAdd('pix', '${p.id}', '${esc(p.name)}')" style="color: var(--ok);" title="Soma Rápida"><i class="fa-solid fa-plus"></i></button>
                   <button class="btn btn-ghost btn-sm" onclick="editPix('${p.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
                   <button class="btn btn-danger btn-sm" onclick="deletePix('${p.id}')" title="Excluir"><i class="fa-solid fa-xmark"></i></button>
                 </td>
@@ -1668,23 +1630,19 @@ function renderAll() {
 function renderLog(month) {
   const all = [];
 
-  // Mapeia Cartões (Faturas)
   month.expenses.forEach(e => {
     const currentVal = Number(e.actual) || Number(e.future) || Number(e.estimated) || 0;
     const edits = e.edits || [];
     const totalDiff = edits.reduce((sum, ed) => sum + ed.diff, 0);
     const initialVal = currentVal - totalDiff; 
 
-    // Adicionado 'id'
     all.push({type:'expense', name:e.name, amount: initialVal, method:'Fatura', obs:e.obs, ts:e.ts, id: e.id});
 
     edits.forEach(ed => {
-      // Adicionado 'id', 'isEdit' e 'editTs'
       all.push({type:'expense', name:e.name + ' (ajuste)', amount: ed.diff, method:'Fatura', obs:'Valor alterado', ts:ed.ts, id: e.id, isEdit: true, editTs: ed.ts});
     });
   });
 
-  // Mapeia Pix/Débito
   (month.pix || []).forEach(p => {
     const currentVal = Number(p.value) || 0;
     const edits = p.edits || [];
@@ -1698,7 +1656,6 @@ function renderLog(month) {
     });
   });
 
-  // Mapeia Entradas
   month.income.forEach(i => {
     const currentVal = Number(i.value) || 0;
     const edits = i.edits || [];
@@ -1712,7 +1669,6 @@ function renderLog(month) {
     });
   });
 
-  // Ordena do mais recente pro mais antigo
   all.sort((a,b) => b.ts - a.ts);
 
   if (!all.length) return `<div class="empty"><div class="icon"><i class="fa-solid fa-list-check"></i></div><p>Nenhum registro ainda.</p></div>`;
@@ -1746,7 +1702,6 @@ function renderLog(month) {
         </div>
         <div class="log-amount ${colorClass}">${sign}${fmt(absAmount)}</div>
         
-        <!-- Botão de apagar recém adicionado -->
         <button class="btn btn-ghost btn-sm" style="margin-left:12px; color:var(--danger); opacity:0.3; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.3" onclick="deleteLogItem('${item.method}', '${item.id}', ${editTsParam})" title="Apagar do histórico"><i class="fa-solid fa-trash"></i></button>
       </div>
     `;
@@ -1817,7 +1772,6 @@ function createMonth() {
       const cat = getCategory(e.categoryId || e.category);
       let isFixa = cat.name.toLowerCase().includes('fixa');
       
-      // Nova verificação para a marcação de ir para o mês que vem
       let isFicaProMesQueVem = e.statusChoice === 'next';
       
       let match = e.name.match(/\((\d+)\/(\d+)\)/);
@@ -1831,11 +1785,10 @@ function createMonth() {
             isParcela = true;
             newName = e.name.replace(/\(\d+\/\d+\)/, `(${cur + 1}/${tot})`);
         } else {
-            return; // Terminou de pagar a parcela
+            return;
         }
       }
       
-      // Se for fixa, parcela em andamento ou estava marcado para o mês que vem
       if (isFixa || isParcela || isFicaProMesQueVem) {
         const cloneTs = Date.now();
         newMonth.expenses.push({
@@ -1844,7 +1797,6 @@ function createMonth() {
       }
     });
 
-    // Clona PIX/Débito marcados como fixos
     (lastMonth.pix || []).forEach(p => {
       if (p.isFixed) {
         const cloneTs = Date.now();
@@ -1869,7 +1821,7 @@ function openExpenseModal() {
   document.getElementById('exp-installment-current').value = 1;
   document.getElementById('exp-installments').value = 2;
   document.getElementById('div-installments').style.display = 'none';
-  document.getElementById('exp-is-installment').parentElement.style.display = 'flex'; // mostra checkbox
+  document.getElementById('exp-is-installment').parentElement.style.display = 'flex';
   openModal('modal-expense');
 }
 function closeExpenseModal() { editingExpenseId = null; closeModal('modal-expense'); }
@@ -1881,7 +1833,6 @@ function editExpense(id) {
   editingExpenseId = id;
   document.getElementById('modal-expense-title').innerHTML = '<i class="fa-solid fa-pen"></i> Editar Fatura';
 
-  // Detecta se o nome já tem padrão de parcela (ex: "Nome (2/5)")
   const match = exp.name.match(/^(.*)\s\((\d+)\/(\d+)\)$/);
 
   document.getElementById('exp-name').value = match ? match[1] : exp.name;
@@ -1891,7 +1842,6 @@ function editExpense(id) {
   setMoneyValue('exp-actual', exp.actual);
   document.getElementById('exp-obs').value = exp.obs || '';
 
-  // Mostra a opção de parcela também na edição
   document.getElementById('exp-is-installment').parentElement.style.display = 'flex';
 
   if (match) {
@@ -1918,7 +1868,6 @@ function saveExpense() {
   const obs = document.getElementById('exp-obs').value.trim();
   if (!name) return alert('Coloca a descrição!');
 
-  // Logica de parcela (na criação e também na edição)
   if (document.getElementById('exp-is-installment').checked) {
      const atual = document.getElementById('exp-installment-current').value || 1;
      const vezes = document.getElementById('exp-installments').value;
@@ -1931,14 +1880,11 @@ function saveExpense() {
     const idx = month.expenses.findIndex(e => e.id === editingExpenseId);
     if(idx > -1) {
       const oldObj = month.expenses[idx];
-      // Pega o valor atual que estava salvo
       const oldVal = Number(oldObj.actual) || Number(oldObj.future) || Number(oldObj.estimated) || 0;
-      // Pega o novo valor
       const newVal = Number(actual) || Number(future) || Number(estimated) || 0;
       const diff = newVal - oldVal;
 
       const edits = oldObj.edits || [];
-      // Se houve diferença de valor, cria um log
       if (diff !== 0) edits.push({ diff, ts: Date.now() });
 
       month.expenses[idx] = { ...oldObj, name, categoryId, estimated, future, actual, obs, edits, updatedAt: Date.now() };
@@ -2140,7 +2086,7 @@ sync.iniciar();
 </script>
 
 <script>
-  // Manifest inline
+  // Manifest inline — só metadados de "adicionar à tela de início", não cacheia nada
   const manifest = {
     "name": "Controle de Grana",
     "short_name": "Grana",
@@ -2157,15 +2103,17 @@ sync.iniciar();
   const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
   document.head.insertAdjacentHTML('beforeend', `<link rel="manifest" href="${URL.createObjectURL(manifestBlob)}">`);
 
-  // Service Worker simplificado
+  // Remove qualquer Service Worker de uma versão antiga deste app.
+  // Um SW registrado (mesmo vazio) faz o navegador "grudar" numa versão
+  // antiga da página, então este app não registra nenhum — e este bloco
+  // limpa quem já tinha instalado o antigo.
   if ('serviceWorker' in navigator) {
-    const swCode = `
-      self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
-      self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
-      self.addEventListener('fetch', e => {});
-    `;
-    const swBlob = new Blob([swCode], {type: 'application/javascript'});
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(err => console.log('SW erro:', err));
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => r.unregister());
+    }).catch(() => {});
+  }
+  if (window.caches && caches.keys) {
+    caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
   }
 </script>
 </body>
