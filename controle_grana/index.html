@@ -443,6 +443,9 @@
       </button>
       <i class="fa-solid fa-money-bill-wave"></i> <span>Controle de Grana</span>
     </div>
+    <a href="../" class="btn btn-ghost" title="Voltar pros apps" style="text-decoration:none">
+      <i class="fa-solid fa-arrow-left"></i> Apps
+    </a>
     
     <!-- Seus botões originais mantidos intactos -->
     <div class="header-actions">
@@ -776,6 +779,13 @@ function criaSync(cfg) {
       return null;
     },
 
+    /* Grava sem mexer no carimbo de hora. É pra arrumação de abertura
+       (criar a semana atual, escolher um quadro padrão) — não é alteração
+       de verdade e não pode vencer o que está no servidor. */
+    salvarQuieto() {
+      gravarLocal(cfg.chave, JSON.stringify({ _v: 1, _atualizado: quando(), dados: cfg.ler() }));
+    },
+
     salvar() {
       const ok = gravarLocal(cfg.chave, embrulha(cfg.ler()));
       if (!ok) avisa('erro', 'este navegador não guardou os dados');
@@ -831,6 +841,7 @@ function criaSync(cfg) {
         catch (e) { location.hash = ''; }
         avisa('ok', 'sincronia configurada');
       }
+      if (!ativo()) { avisa('erro', 'sincronia não configurada — abra /apps/'); return; }
       addEventListener('online', () => api.sincroniza());
       document.addEventListener('visibilitychange', () => { if (!document.hidden) api.sincroniza(); });
       addEventListener('pagehide', () => { if (ativo()) api.empurrar(); });
