@@ -94,6 +94,17 @@
   .legend .mini{width:26px;height:24px;border-radius:7px;border:1.5px solid var(--edge);background:var(--panel-2);display:inline-grid;place-items:center;font-size:11px;color:var(--mut);vertical-align:middle}
   .legend .mini.on{background:var(--bad);border-color:var(--bad);color:#fff}
 
+  .provas{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 16px;margin-bottom:14px}
+  .provas.perto{border-color:var(--urg);box-shadow:0 0 0 1px var(--urg) inset}
+  .provas-tit{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:600;margin-bottom:10px}
+  .prova-linha{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:14px}
+  .prova-linha+.prova-linha{border-top:1px solid var(--line)}
+  .prova-dot{width:8px;height:8px;border-radius:99px;flex:none}
+  .prova-mat{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prova-mat em{font-style:normal;font-weight:400;color:var(--mut);font-size:12.5px;margin-left:7px}
+  .prova-quando{font-size:13px;color:var(--mut);flex:none}
+  .prova-quando.ja{color:var(--warn);font-weight:650}
+  .prova-data{font-family:var(--mono);font-size:12.5px;color:var(--dim);flex:none;min-width:44px;text-align:right}
   .month{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px;padding-left:2px}
 
   /* linhas de data */
@@ -115,6 +126,9 @@
   .more{width:30px;height:36px;border-radius:9px;display:grid;place-items:center;color:var(--mut);font-size:17px;flex:none}
   .more:active{background:var(--panel-2)}
   .offmark{font-size:12px;color:var(--mut);font-style:italic}
+  .row.emarco{background:transparent;border-style:solid;border-width:2px;border-color:var(--mc);opacity:.72}
+  .row.emarco .rdate{color:var(--mut)}
+  .tag.marco{color:#15110A;text-shadow:0 0 1px rgba(255,255,255,.25)}
   .tag{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;background:var(--panel-2);border:1px solid var(--line);color:var(--mut);padding:1.5px 5px;border-radius:5px;font-weight:600}
   .listacts{margin-top:18px;display:flex;flex-direction:column;gap:9px}
   .listacts .btn{margin-top:0}
@@ -141,6 +155,15 @@
   .theme.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink) inset}
   .tprev{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;gap:3px;border:1px solid rgba(128,128,128,.35)}
   .tprev i{width:7px;height:7px;border-radius:99px;display:block}
+  .field>label.check{display:flex;align-items:center;gap:10px;cursor:pointer;
+         font-size:15px;color:var(--ink);margin-bottom:0;padding:4px 2px;
+         border:0;background:none}
+  .check input{width:20px;height:20px;flex:none;accent-color:var(--hi);cursor:pointer;margin:0}
+  .corpick{flex:0 0 54px;max-width:54px;height:44px;padding:3px;border:1px solid var(--line);
+           border-radius:10px;background:var(--panel-2);cursor:pointer}
+  .corpick::-webkit-color-swatch-wrapper{padding:0}
+  .corpick::-webkit-color-swatch{border:0;border-radius:7px}
+  .corpick::-moz-color-swatch{border:0;border-radius:7px}
   .swatches{display:flex;gap:9px}
   .sw{width:34px;height:34px;border-radius:99px;border:2px solid transparent}
   .sw.on{border-color:var(--ink)}
@@ -401,7 +424,8 @@ function linha(sub,k,e,extra){
   const f=(e.f||[]).filter(i=>i<slots);
   return {key:k, wd:w, extra, slots, f, a:f.length,
     note:e.note??(hol||''),
-    off:e.off!==undefined?e.off:!!hol,
+    marco:e.marco||null,
+    off:e.off!==undefined?e.off:(!!hol||!!e.marco),
     isHoliday:!!hol};
 }
 function dates(sub){
@@ -452,7 +476,7 @@ function calcPeriodo(sub){
 }
 function limpaEntrada(sub,k){
   const e=sub.entries[k];
-  if(e && !(e.f&&e.f.length) && !e.note && e.off===undefined && e.slots===undefined && !e.add && !e.del)
+  if(e && !(e.f&&e.f.length) && !e.note && !e.marco && e.off===undefined && e.slots===undefined && !e.add && !e.del)
     delete sub.entries[k];
 }
 function stats(sub){
@@ -496,6 +520,22 @@ function render(){
   } else window.scrollTo(0,0);
 }
 
+function painelProvas(){
+  const ps=marcosFuturos();
+  if(!ps.length) return '';
+  const urgente=ps[0].dias<=3;
+  return `<div class="provas ${urgente?'perto':''}" style="--urg:${ps[0].cor}">
+    <div class="provas-tit">Vem por aí</div>
+    ${ps.slice(0,4).map(p=>`
+      <div class="prova-linha">
+        <span class="prova-dot" style="background:${p.cor}"></span>
+        <span class="prova-mat">${esc(p.rotulo)}<em>${esc(p.sub.name)}</em></span>
+        <span class="prova-quando ${p.dias<=3?'ja':''}" ${p.dias<=3?`style="color:${p.cor}"`:''}>${textoPrazo(p.dias)}</span>
+        <span class="prova-data">${br(p.key)}</span>
+      </div>`).join('')}
+  </div>`;
+}
+
 function renderHome(){
   $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
     <div class="brand">Controle de Faltas<small>Por matéria</small></div>
@@ -503,7 +543,7 @@ function renderHome(){
   if(!state.subjects.length){
     $app.innerHTML=`<div class="empty"><b>Nenhuma matéria ainda</b>Cadastre a carga horária e os dias de aula — as datas aparecem sozinhas.</div>`;
   }else{
-    $app.innerHTML='<div id="list">'+state.subjects.map(sub=>{
+    $app.innerHTML=painelProvas()+'<div id="list">'+state.subjects.map(sub=>{
       const s=stats(sub), t=tone(sub&&s), nx=nextClass(sub);
       const pct=Math.min(100, s.limite? s.faltas/s.limite*100 : 0);
       return `<button class="card" data-open="${sub.id}" style="--tone:${t}">
@@ -651,7 +691,7 @@ function renderSubject(){
   s.ds.forEach(x=>{
     const d=pIso(x.key);
     if(d.getMonth()!==mes){mes=d.getMonth();html+=`<div class="month">${MES[mes]}</div>`;}
-    const cls=['row',x.off?'off':'',x.key<todayIso?'past':'',x.key===todayIso?'today':''].join(' ');
+    const cls=['row',x.off?'off':'',x.key<todayIso?'past':'',x.key===todayIso?'today':'',x.marco?'emarco':''].join(' ');
     let marks='';
     if(x.off) marks=`<span class="offmark">sem aula</span>`;
     else for(let i=0;i<x.slots;i++){
@@ -659,10 +699,10 @@ function renderSubject(){
       marks+=`<button class="mk ${x.slots===1?'wide':''} ${marcada?'on':''}" data-mark="${x.key}" data-i="${i}"
         aria-pressed="${marcada}" aria-label="${x.slots===1?'faltei nesse dia':ORD[i]+' chamada'}">${x.slots===1?(marcada?'Faltei':'Faltei?'):ORD[i]}</button>`;
     }
-    html+=`<div class="${cls}">
+    html+=`<div class="${cls}"${x.marco?` style="--mc:${x.marco.cor}"`:''}>
       <button class="rmain" data-edit-date="${x.key}">
         <div class="rdate">${br(x.key)}<i>${WD[x.wd]}${x.key===todayIso?' · hoje':''}</i></div>
-        <div class="rnote">${x.extra?'<b class="tag">avulsa</b> ':''}${x.note?esc(x.note)+' ':''}<i>✎</i></div>
+        <div class="rnote">${x.marco?`<b class="tag marco" style="background:${x.marco.cor};border-color:${x.marco.cor}">${esc(x.marco.rotulo)}</b> `:''}${x.extra?'<b class="tag">avulsa</b> ':''}${x.note?esc(x.note)+' ':''}<i>✎</i></div>
       </button>
       <div class="marks">${marks}</div>
       <button class="more" data-edit-date="${x.key}" aria-label="opções do dia">⋯</button>
@@ -764,6 +804,7 @@ function sheetDate(sub,key){
   const off=e.off!==undefined?e.off:!!hol;
   const slots=e.slots??sub.days[pIso(key).getDay()]??slotsPadrao(sub);
   const a=(e.f||[]).filter(i=>i<slots).length, d=pIso(key);
+  const m=e.marco||{};
   openSheet(`
     <h2>${br(key)}</h2><p class="sub">${WDF[d.getDay()]}${e.add?' · aula avulsa':''}${hol?` · ${hol}`:''}</p>
     ${off?'':`<button class="btn ghost" data-act="all-day" data-key="${key}">
@@ -773,6 +814,20 @@ function sheetDate(sub,key){
     <div class="field two">
       <div><label>Data</label><input type="date" id="d-data" value="${key}"></div>
       <div><label>Chamadas</label><input type="number" min="1" max="6" id="d-slots" value="${slots}"></div>
+    </div>
+    <div class="field">
+      <label class="check">
+        <input type="checkbox" id="d-tem" ${m.rotulo?'checked':''}
+          onchange="document.getElementById('d-marco').style.display=this.checked?'block':'none';if(this.checked)document.getElementById('d-rot').focus()">
+        <span>Tem prova ou apresentação?</span>
+      </label>
+      <div id="d-marco" style="display:${m.rotulo?'block':'none'};margin-top:12px">
+        <div class="two" style="align-items:center">
+          <input id="d-rot" value="${esc(m.rotulo||'')}" placeholder="Descreva">
+          <input type="color" id="d-cor" class="corpick" value="${m.cor||CORES_MARCO[0]}" title="Cor">
+        </div>
+        <p class="hint">Aparece na tela inicial com a contagem de dias.</p>
+      </div>
     </div>
     <button class="btn" data-act="save-date" data-key="${key}">Salvar</button>
     <button class="btn ghost" data-act="toggle-off" data-key="${key}">
@@ -912,12 +967,18 @@ document.addEventListener('click',ev=>{
     }
     case 'toggle-off':{
       const k=el.dataset.key,e=sub.entries[k]||(sub.entries[k]={}),hol=holidayOf(k);
-      e.off=!(e.off!==undefined?e.off:!!hol);
+      e.off=!(e.off!==undefined?e.off:(!!hol||!!e.marco));
       e.note=document.getElementById('d-note').value.trim();
       save();closeSheet();view.scroll=window.scrollY;return render();
     }
     case 'save-date':{
       const k=el.dataset.key,e=sub.entries[k]||(sub.entries[k]={});
+      const rot=(document.getElementById('d-rot').value||'').trim();
+      const tem=document.getElementById('d-tem');
+      if(tem && tem.checked){
+        const cor=document.getElementById('d-cor');
+        e.marco={rotulo:rot||'Prova', cor:(cor&&cor.value)||CORES_MARCO[0]};
+      } else delete e.marco;
       e.note=document.getElementById('d-note').value.trim();
       e.slots=Math.max(1,+document.getElementById('d-slots').value||1);
       if(e.f){ e.f=e.f.filter(i=>i<e.slots); if(!e.f.length) delete e.f; }
@@ -1051,8 +1112,58 @@ function migrate(s){
     s.subjects.forEach(sub=>{ sub.manual=true; if(!sub.aulas) sub.aulas=AULAS_PADRAO; });
     s.version=4;
   }
-  s.version=5;
+  if(s.version<6){
+    // quem já anotava "Prova" no texto ganha a marcação de verdade
+    s.subjects.forEach(sub=>{
+      for(const k in sub.entries){
+        const e=sub.entries[k];
+        if(/prova/i.test(e.note||'')) e.prova=true;
+      }
+    });
+  }
+  if(s.version<7){
+    // a marcação deixa de ser só "prova": agora tem rótulo e cor livres
+    s.subjects.forEach(sub=>{
+      for(const k in sub.entries){
+        const e=sub.entries[k];
+        if(e.prova){
+          e.marco={rotulo:'Prova', cor:CORES_MARCO[0]};
+          delete e.prova;
+        }
+      }
+    });
+  }
+  s.version=7;
   return s;
+}
+
+/* ===== dias marcados (prova, trabalho, apresentação...) ===== */
+const CORES_MARCO=['#F2B14B','#FF6169','#B588F5','#54B8E8','#3DD68C'];
+
+function diasAte(k){
+  const hoje=pIso(todayIso), alvo=pIso(k);
+  return Math.round((alvo-hoje)/86400000);
+}
+function textoPrazo(d){
+  if(d===0) return 'hoje';
+  if(d===1) return 'amanhã';
+  if(d<0) return `há ${-d} ${-d===1?'dia':'dias'}`;
+  if(d<7) return `em ${d} dias`;
+  const sem=Math.floor(d/7);
+  if(d<14) return `em ${d} dias`;
+  return `em ${sem} semanas`;
+}
+function marcosFuturos(){
+  const out=[];
+  state.subjects.forEach(sub=>{
+    dates(sub).forEach(x=>{
+      if(x.marco && x.key>=todayIso)
+        out.push({sub, key:x.key, dias:diasAte(x.key),
+                  rotulo:x.marco.rotulo||'Marcado', cor:x.marco.cor||CORES_MARCO[0]});
+    });
+  });
+  out.sort((a,b)=>a.key<b.key?-1:1);
+  return out;
 }
 
 document.addEventListener('change',ev=>{
