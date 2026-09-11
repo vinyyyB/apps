@@ -54,7 +54,7 @@
   <div class="apps">
     <a class="app" href="controle_faltas/">
       <span class="risco" style="background:#6E8EFF"></span>
-      <span><b>Faltas</b><span>Controle de faltas</span></span>
+      <span><b>Controle de Faltas</b><span>Por matéria</span></span>
       <span class="seta">›</span>
     </a>
     <a class="app" href="planner/">
@@ -90,7 +90,7 @@
       versões de cada app. Escolhe o app, veja as datas e restaura a que você quer de volta.</p>
     <div class="campo"><label>App</label>
       <select id="h-app">
-        <option value="padrao">Faltas</option>
+        <option value="padrao">Controle de Faltas</option>
         <option value="planner">Planner</option>
         <option value="grana">Grana</option>
       </select>
@@ -213,10 +213,17 @@ document.addEventListener('click', async function(ev){
   try{
     const r=await fetch(c.url+'/'+app+'/historico/'+ts,{headers:{'x-codigo':c.codigo}});
     if(!r.ok) throw 0;
-    const conteudo=await r.text();
+    let conteudo=await r.text();
+    // Recarimba a hora: sem isso, o aparelho que está aberto tem carimbo mais
+    // recente, se acha o dono da verdade e empurra o estado atual por cima —
+    // desfazendo a restauração em segundos.
+    try{
+      const env=JSON.parse(conteudo);
+      if(env && env._v===1){ env._atualizado=Date.now(); conteudo=JSON.stringify(env); }
+    }catch(e){}
     const r2=await fetch(c.url+'/'+app,{method:'PUT',headers:{'content-type':'application/json','x-codigo':c.codigo},body:conteudo});
     if(!r2.ok) throw 0;
-    fala('ok','Restaurado. Abra o app pra ver — pode levar um instante pra puxar.');
+    fala('ok','Restaurado. Feche e reabra o app pra ele puxar a versão restaurada.');
     $('h-listar').click();
   }catch(e){ fala('erro','Não deu pra restaurar — tenta de novo'); }
 });
