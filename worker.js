@@ -30,7 +30,19 @@ const CORS = {
 };
 
 const LIMITE = 2 * 1024 * 1024;
-const HISTORICO_MAX = 8;
+const HISTORICO_MAX = 20;
+
+/* Compara ignorando o carimbo de hora: reenvio do mesmo conteúdo não deve
+   ocupar espaço no histórico, senão umas poucas sincronias seguidas apagam
+   todas as versões antigas — justo as que interessam numa recuperação. */
+function conteudoIgual(a, b) {
+  try {
+    const x = JSON.parse(a), y = JSON.parse(b);
+    if (x && y && x._v === 1 && y._v === 1)
+      return JSON.stringify(x.dados) === JSON.stringify(y.dados);
+  } catch (e) {}
+  return false;
+}
 
 const resposta = (obj, status = 200) =>
   new Response(JSON.stringify(obj), {
@@ -38,8 +50,10 @@ const resposta = (obj, status = 200) =>
     headers: { ...CORS, 'content-type': 'application/json; charset=utf-8' }
   });
 
-async function guardaHistorico(env, base, valorAntigo) {
-  if (!valorAntigo) return; // nada a preservar na primeira gravação
+async function guardaHistorico(env, base, valorAntigo, valorNovo) {
+  if (!valorAntigo) return;                    // nada a preservar na primeira gravação
+  if (valorAntigo === valorNovo) return;       // nada mudou, não gasta um espaço
+  if (conteudoIgual(valorAntigo, valorNovo)) return;  // só o carimbo de hora mudou
   const idxKey = base + ':hist';
   let idx = [];
   try { idx = JSON.parse((await env.DADOS.get(idxKey)) || '[]'); } catch (e) { idx = []; }
@@ -108,7 +122,7 @@ export default {
       if (!o || typeof o !== 'object') return resposta({ erro: 'json invalido' }, 400);
 
       const anterior = await env.DADOS.get(base);
-      await guardaHistorico(env, base, anterior);
+      await guardaHistorico(env, base, anterior, corpo);
       await env.DADOS.put(base, corpo);
       return resposta({ ok: true, em: Date.now() });
     }
