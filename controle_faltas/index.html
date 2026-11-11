@@ -106,6 +106,35 @@
   .prova-quando{font-size:13px;color:var(--mut);text-align:right;white-space:nowrap}
   .prova-quando.ja{font-weight:650}
   .prova-data{font-family:var(--mono);font-size:12.5px;color:var(--dim);text-align:right}
+  /* calendário (mesmo card do "Vem por aí") */
+  .cal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 14px 12px;margin-bottom:14px}
+  .cal-top{display:flex;align-items:center;gap:6px;margin-bottom:10px}
+  .cal-top .provas-tit{margin:0;flex:1}
+  .cal-top .provas-tit b{color:var(--ink);font-weight:600;letter-spacing:.1em;margin-left:6px}
+  .cal-nav{width:30px;height:28px;border-radius:9px;display:grid;place-items:center;color:var(--mut);font-size:17px;line-height:1}
+  .cal-nav:active{background:var(--panel-2)}
+  .cal-hoje{font-size:11.5px;color:var(--mut);padding:5px 9px;border-radius:8px;border:1px solid var(--line)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}
+  .cal-wd{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);text-align:center;padding-bottom:4px;font-weight:600}
+  .cal-d{position:relative;height:38px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+         font-family:var(--mono);font-size:12.5px;color:var(--dim);text-align:center}
+  .cal-d.aula{background:var(--panel-2);color:var(--ink)}
+  .cal-d.aula:active{background:var(--line)}
+  .cal-d.marco{background:var(--mc);color:#15110A;font-weight:650}
+  .cal-d.passou{opacity:.42}
+  .cal-d.hoje{box-shadow:0 0 0 1.5px var(--hi) inset}
+  .cal-d.marco.hoje{box-shadow:0 0 0 2px var(--panel) inset,0 0 0 3.5px var(--hi) inset}
+  .cal-d.fer{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--edge)}
+  .cal-pts{display:flex;gap:2px;height:4px}
+  .cal-pts i{width:4px;height:4px;border-radius:99px;background:var(--mut);opacity:.7}
+  .cal-d.marco .cal-pts i{background:#15110A;opacity:.55}
+  .cal-pts i.f{background:var(--bad);opacity:1}
+  .cal-leg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;font-size:11.5px;color:var(--mut);align-items:center}
+  .cal-leg span{display:inline-flex;align-items:center;gap:5px}
+  .cal-leg s{width:12px;height:12px;border-radius:4px;display:inline-block;text-decoration:none}
+  .dia-it{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);margin-bottom:8px}
+  .dia-it .prova-mat{flex:1}
+  .dia-it small{color:var(--mut);font-size:12px;white-space:nowrap}
   .month{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px;padding-left:2px}
 
   /* linhas de data */
@@ -537,6 +566,75 @@ function painelProvas(){
   </div>`;
 }
 
+/* ===== calendário ===== */
+let calOff=0;   // meses a partir do atual
+function eventosDoMes(y,m){
+  const ini=iso(new Date(y,m,1)), fim=iso(new Date(y,m+1,0)), por={};
+  state.subjects.forEach(sub=>{
+    dates(sub).forEach(x=>{
+      if(x.key<ini||x.key>fim) return;
+      (por[x.key]||(por[x.key]=[])).push({sub,x});
+    });
+  });
+  return por;
+}
+function painelCalendario(){
+  const base=new Date(), d0=new Date(base.getFullYear(),base.getMonth()+calOff,1);
+  const y=d0.getFullYear(), m=d0.getMonth(), nDias=new Date(y,m+1,0).getDate();
+  const por=eventosDoMes(y,m);
+  let cel='';
+  for(let i=0;i<d0.getDay();i++) cel+='<span></span>';
+  for(let dia=1;dia<=nDias;dia++){
+    const k=iso(new Date(y,m,dia)), evs=por[k]||[];
+    const aulas=evs.filter(e=>!e.x.off);
+    const marco=evs.find(e=>e.x.marco);
+    const cls=['cal-d', aulas.length?'aula':'', marco?'marco':'', k<todayIso?'passou':'', k===todayIso?'hoje':'',
+               !aulas.length&&!marco&&holidayOf(k)?'fer':''].join(' ');
+    const pts=aulas.slice(0,3).map(e=>`<i class="${e.x.a?'f':''}"></i>`).join('');
+    const titulo=[holidayOf(k)||'', ...evs.map(e=>e.sub.name+(e.x.marco?' · '+e.x.marco.rotulo:''))].filter(Boolean).join(', ');
+    cel+= evs.length
+      ? `<button class="${cls}" data-cal-dia="${k}" ${marco?`style="--mc:${marco.x.marco.cor}"`:''} aria-label="${dia} de ${MES[m]}: ${esc(titulo)}">${dia}<span class="cal-pts">${pts}</span></button>`
+      : `<span class="${cls}" ${titulo?`title="${esc(titulo)}"`:''}>${dia}<span class="cal-pts"></span></span>`;
+  }
+  const leg=Object.values(por).flat().filter(e=>e.x.marco).map(e=>e.x.marco);
+  return `<div class="cal">
+    <div class="cal-top">
+      <div class="provas-tit">Calendário<b>${MES[m]}${y!==base.getFullYear()?' '+y:''}</b></div>
+      ${calOff?`<button class="cal-hoje" data-act="cal-hoje">Hoje</button>`:''}
+      <button class="cal-nav" data-act="cal-ant" aria-label="mês anterior">‹</button>
+      <button class="cal-nav" data-act="cal-prox" aria-label="próximo mês">›</button>
+    </div>
+    <div class="cal-grid">
+      ${['D','S','T','Q','Q','S','S'].map(w=>`<span class="cal-wd">${w}</span>`).join('')}
+      ${cel}
+    </div>
+    <div class="cal-leg">
+      <span><s style="background:var(--panel-2);border:1px solid var(--line)"></s>aula</span>
+      <span><s style="background:var(--bad);width:5px;height:5px;border-radius:99px"></s>falta</span>
+      ${leg.length?`<span><s style="background:${leg[0].cor}"></s>prova ou trabalho, na cor marcada</span>`:''}
+    </div>
+  </div>`;
+}
+function sheetDia(k){
+  const d=pIso(k), evs=eventosDoMes(d.getFullYear(),d.getMonth())[k]||[], hol=holidayOf(k);
+  const prazo=diasAte(k);
+  openSheet(`
+    <h2>${d.getDate()} de ${MES[d.getMonth()].toLowerCase()}</h2>
+    <p class="sub">${WDF[d.getDay()]} · ${textoPrazo(prazo)}${hol?` · ${hol}`:''}</p>
+    ${evs.map(({sub,x})=>{
+      const info = x.marco ? '' : x.off ? 'sem aula'
+        : x.a ? `faltei ${x.a===x.slots?'o dia':x.a+' de '+x.slots}`
+        : `${x.slots} chamada${x.slots>1?'s':''}`;
+      return `<button class="dia-it" data-open="${sub.id}">
+        <span class="prova-dot" style="background:${x.marco?x.marco.cor:'var(--dim)'}"></span>
+        <span class="prova-mat">${esc(sub.name)}${x.note&&!x.marco?`<em>${esc(x.note)}</em>`:''}</span>
+        ${x.marco?`<b class="tag marco" style="background:${x.marco.cor};border-color:${x.marco.cor}">${esc(x.marco.rotulo)}</b>`:''}
+        <small style="${x.a&&!x.off?'color:var(--bad)':''}">${info}</small>
+        <span class="chev">›</span>
+      </button>`;}).join('')}
+  `);
+}
+
 function renderHome(){
   $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
     <div class="brand">Controle de Faltas<small>Por matéria</small></div>
@@ -544,7 +642,7 @@ function renderHome(){
   if(!state.subjects.length){
     $app.innerHTML=`<div class="empty"><b>Nenhuma matéria ainda</b>Cadastre a carga horária e os dias de aula — as datas aparecem sozinhas.</div>`;
   }else{
-    $app.innerHTML=painelProvas()+'<div id="list">'+state.subjects.map(sub=>{
+    $app.innerHTML=painelProvas()+painelCalendario()+'<div id="list">'+state.subjects.map(sub=>{
       const s=stats(sub), t=tone(sub&&s), nx=nextClass(sub);
       const pct=Math.min(100, s.limite? s.faltas/s.limite*100 : 0);
       return `<button class="card" data-open="${sub.id}" style="--tone:${t}">
@@ -908,7 +1006,7 @@ function sheetSettings(){
 
 /* ===== eventos ===== */
 document.addEventListener('click',ev=>{
-  const el=ev.target.closest('[data-act],[data-open],[data-mark],[data-edit-date],[data-day],[data-color],[data-tema]');
+  const el=ev.target.closest('[data-act],[data-open],[data-cal-dia],[data-mark],[data-edit-date],[data-day],[data-color],[data-tema]');
   if(!el)return;
   const sub=view.name==='subject'?state.subjects.find(x=>x.id===view.id):null;
 
@@ -916,7 +1014,8 @@ document.addEventListener('click',ev=>{
     state.settings.tema=el.dataset.tema; applyTheme(el.dataset.tema); save();
     return sheetSettings();
   }
-  if(el.dataset.open){view={name:'subject',id:el.dataset.open};return render();}
+  if(el.dataset.calDia) return sheetDia(el.dataset.calDia);
+  if(el.dataset.open){closeSheet();view={name:'subject',id:el.dataset.open};return render();}
 
   if(el.dataset.mark){
     const k=el.dataset.mark,i=+el.dataset.i;
@@ -939,6 +1038,9 @@ document.addEventListener('click',ev=>{
   switch(el.dataset.act){
     case 'home': view={name:'home'};return render();
     case 'new': return sheetSubject(null);
+    case 'cal-ant': calOff--; view.scroll=window.scrollY; return render();
+    case 'cal-prox': calOff++; view.scroll=window.scrollY; return render();
+    case 'cal-hoje': calOff=0; view.scroll=window.scrollY; return render();
     case 'toggle-manual':
       readSubject(); draft.manual=!draft.manual;
       return drawSubject(state.subjects.some(x=>x.id===draft.id));
