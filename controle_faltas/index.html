@@ -106,6 +106,33 @@
   .prova-quando{font-size:13px;color:var(--mut);text-align:right;white-space:nowrap}
   .prova-quando.ja{font-weight:650}
   .prova-data{font-family:var(--mono);font-size:12.5px;color:var(--dim);text-align:right}
+  /* calendário (mesmo card do "Vem por aí") */
+  .cal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px 12px 12px;margin-bottom:14px}
+  .cal-top{display:flex;align-items:center;gap:2px;margin:0 4px 8px}
+  .cal-top .provas-tit{margin:0;flex:1}
+  .cal-mes{font-size:13px;font-weight:600;color:var(--soft);min-width:84px;text-align:center}
+  .cal-nav{width:28px;height:28px;border-radius:99px;display:grid;place-items:center;color:var(--mut);font-size:16px;line-height:1}
+  .cal-nav:active{background:var(--panel-2)}
+  .cal-hoje{font-size:11.5px;color:var(--hi);padding:4px 8px;margin-right:2px}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));row-gap:4px;justify-items:center}
+  .cal-wd{font-size:10px;letter-spacing:.1em;color:var(--dim);text-align:center;padding-bottom:2px;font-weight:600;width:100%}
+  .cal-d{width:24px;height:24px;border-radius:99px;display:grid;place-items:center;padding:0;
+         font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--dim);text-align:center}
+  .cal-d.aula{color:var(--soft);box-shadow:0 0 0 1.5px var(--edge) inset}
+  .cal-d.marco{background:var(--mc);box-shadow:none;color:#15110A;font-weight:650}
+  .cal-d.passou{opacity:.45}
+  .cal-d.hoje{color:var(--hi);font-weight:700}
+  .cal-d.aula.hoje{box-shadow:0 0 0 1.5px var(--hi) inset}
+  .cal-d.marco.hoje{color:#15110A;box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--hi)}
+  button.cal-d:active{filter:brightness(.85)}
+  .cal-leg{display:flex;flex-wrap:wrap;gap:4px 14px;margin:10px 4px 0;font-size:11.5px;color:var(--mut)}
+  .cal-leg span{display:inline-flex;align-items:center;gap:6px}
+  .cal-leg i{width:10px;height:10px;border-radius:99px;display:inline-block}
+  .cal-cores{display:inline-flex}
+  .cal-cores i+i{margin-left:-3px}
+  .dia-it{display:flex;align-items:center;gap:10px;width:100%;padding:11px 12px;border-radius:12px;background:var(--panel-2);border:1px solid var(--line);margin-bottom:8px}
+  .dia-it .prova-mat{flex:1}
+  .dia-it small{color:var(--mut);font-size:12px;white-space:nowrap}
   .month{font-size:10.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--mut);margin:20px 0 8px;padding-left:2px}
 
   /* linhas de data */
@@ -537,6 +564,73 @@ function painelProvas(){
   </div>`;
 }
 
+/* ===== calendário ===== */
+let calOff=0;   // meses a partir do atual
+function eventosDoMes(y,m){
+  const ini=iso(new Date(y,m,1)), fim=iso(new Date(y,m+1,0)), por={};
+  state.subjects.forEach(sub=>{
+    dates(sub).forEach(x=>{
+      if(x.key<ini||x.key>fim) return;
+      (por[x.key]||(por[x.key]=[])).push({sub,x});
+    });
+  });
+  return por;
+}
+function painelCalendario(){
+  const base=new Date(), d0=new Date(base.getFullYear(),base.getMonth()+calOff,1);
+  const y=d0.getFullYear(), m=d0.getMonth(), nDias=new Date(y,m+1,0).getDate();
+  const por=eventosDoMes(y,m);
+  let cel='', cores=[];
+  for(let i=0;i<d0.getDay();i++) cel+='<span class="cal-d"></span>';
+  for(let dia=1;dia<=nDias;dia++){
+    const k=iso(new Date(y,m,dia)), evs=por[k]||[];
+    const aulas=evs.filter(e=>!e.x.off);
+    const marco=evs.find(e=>e.x.marco);
+    if(marco && !cores.includes(marco.x.marco.cor)) cores.push(marco.x.marco.cor);
+    const cls=['cal-d', aulas.length?'aula':'', marco?'marco':'',
+               k<todayIso?'passou':'', k===todayIso?'hoje':''].join(' ');
+    const titulo=[holidayOf(k)||'', ...evs.map(e=>e.sub.name+(e.x.marco?' · '+e.x.marco.rotulo:''))].filter(Boolean).join(', ');
+    cel+= evs.length
+      ? `<button class="${cls}" data-cal-dia="${k}" ${marco?`style="--mc:${marco.x.marco.cor}"`:''} aria-label="${dia} de ${MES[m]}: ${esc(titulo)}">${dia}</button>`
+      : `<span class="${cls}" ${titulo?`title="${esc(titulo)}"`:''}>${dia}</span>`;
+  }
+  return `<div class="cal">
+    <div class="cal-top">
+      <div class="provas-tit">Calendário</div>
+      ${calOff?`<button class="cal-hoje" data-act="cal-hoje">Hoje</button>`:''}
+      <button class="cal-nav" data-act="cal-ant" aria-label="mês anterior">‹</button>
+      <span class="cal-mes">${MES[m]}${y!==base.getFullYear()?' '+String(y).slice(2):''}</span>
+      <button class="cal-nav" data-act="cal-prox" aria-label="próximo mês">›</button>
+    </div>
+    <div class="cal-grid">
+      ${['D','S','T','Q','Q','S','S'].map(w=>`<span class="cal-wd">${w}</span>`).join('')}
+      ${cel}
+    </div>
+    <div class="cal-leg">
+      <span><i style="box-shadow:0 0 0 1.5px var(--edge) inset"></i>dia de aula</span>
+      ${cores.length?`<span><span class="cal-cores">${cores.slice(0,4).map(c=>`<i style="background:${c}"></i>`).join('')}</span>prova ou trabalho</span>`:''}
+    </div>
+  </div>`;
+}
+function sheetDia(k){
+  const d=pIso(k), evs=eventosDoMes(d.getFullYear(),d.getMonth())[k]||[], hol=holidayOf(k);
+  const prazo=diasAte(k);
+  openSheet(`
+    <h2>${d.getDate()} de ${MES[d.getMonth()].toLowerCase()}</h2>
+    <p class="sub">${WDF[d.getDay()]} · ${textoPrazo(prazo)}${hol?` · ${hol}`:''}</p>
+    ${evs.map(({sub,x})=>{
+      const info = x.marco ? '' : x.off ? 'sem aula'
+        : `${x.slots} chamada${x.slots>1?'s':''}`;
+      return `<button class="dia-it" data-open="${sub.id}">
+        <span class="prova-dot" style="background:${x.marco?x.marco.cor:'var(--dim)'}"></span>
+        <span class="prova-mat">${esc(sub.name)}${x.note&&!x.marco?`<em>${esc(x.note)}</em>`:''}</span>
+        ${x.marco?`<b class="tag marco" style="background:${x.marco.cor};border-color:${x.marco.cor}">${esc(x.marco.rotulo)}</b>`:''}
+        <small>${info}</small>
+        <span class="chev">›</span>
+      </button>`;}).join('')}
+  `);
+}
+
 function renderHome(){
   $top.innerHTML=`<a class="tbtn" href="../" style="text-decoration:none">‹ Apps</a>
     <div class="brand">Controle de Faltas<small>Por matéria</small></div>
@@ -544,7 +638,7 @@ function renderHome(){
   if(!state.subjects.length){
     $app.innerHTML=`<div class="empty"><b>Nenhuma matéria ainda</b>Cadastre a carga horária e os dias de aula — as datas aparecem sozinhas.</div>`;
   }else{
-    $app.innerHTML=painelProvas()+'<div id="list">'+state.subjects.map(sub=>{
+    $app.innerHTML=painelProvas()+painelCalendario()+'<div id="list">'+state.subjects.map(sub=>{
       const s=stats(sub), t=tone(sub&&s), nx=nextClass(sub);
       const pct=Math.min(100, s.limite? s.faltas/s.limite*100 : 0);
       return `<button class="card" data-open="${sub.id}" style="--tone:${t}">
@@ -908,7 +1002,7 @@ function sheetSettings(){
 
 /* ===== eventos ===== */
 document.addEventListener('click',ev=>{
-  const el=ev.target.closest('[data-act],[data-open],[data-mark],[data-edit-date],[data-day],[data-color],[data-tema]');
+  const el=ev.target.closest('[data-act],[data-open],[data-cal-dia],[data-mark],[data-edit-date],[data-day],[data-color],[data-tema]');
   if(!el)return;
   const sub=view.name==='subject'?state.subjects.find(x=>x.id===view.id):null;
 
@@ -916,7 +1010,8 @@ document.addEventListener('click',ev=>{
     state.settings.tema=el.dataset.tema; applyTheme(el.dataset.tema); save();
     return sheetSettings();
   }
-  if(el.dataset.open){view={name:'subject',id:el.dataset.open};return render();}
+  if(el.dataset.calDia) return sheetDia(el.dataset.calDia);
+  if(el.dataset.open){closeSheet();view={name:'subject',id:el.dataset.open};return render();}
 
   if(el.dataset.mark){
     const k=el.dataset.mark,i=+el.dataset.i;
@@ -939,6 +1034,9 @@ document.addEventListener('click',ev=>{
   switch(el.dataset.act){
     case 'home': view={name:'home'};return render();
     case 'new': return sheetSubject(null);
+    case 'cal-ant': calOff--; view.scroll=window.scrollY; return render();
+    case 'cal-prox': calOff++; view.scroll=window.scrollY; return render();
+    case 'cal-hoje': calOff=0; view.scroll=window.scrollY; return render();
     case 'toggle-manual':
       readSubject(); draft.manual=!draft.manual;
       return drawSubject(state.subjects.some(x=>x.id===draft.id));
