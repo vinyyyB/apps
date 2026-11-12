@@ -21,14 +21,18 @@
     --danger: #ff4d6a;
     --warn: #ffb547;
     --ok: #00d4aa;
-    --muted: #565f7e;
+    --muted: #6b7394;
     --text: #e2e5f0;
     --text2: #9aa3c2;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', sans-serif;
+    color-scheme: dark;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn:active { transform: translateY(1px); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 
   body {
     background: var(--bg);
@@ -53,7 +57,7 @@
   .header-top {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     margin-bottom: 16px;
     flex-wrap: wrap; 
     gap: 16px;
@@ -76,6 +80,7 @@
   }
 
   .logo {
+    margin-right: auto;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.5px;
@@ -119,15 +124,14 @@
   }
   .month-tab:hover { color: var(--text); background: var(--surface); }
   .month-tab.active {
-	
-	.month-tab { cursor: grab; }
-	.month-tab:active { cursor: grabbing; }
-	.month-tab.dragging { opacity: 0.5; background: var(--surface2); border: 1px dashed var(--muted); }
     background: var(--bg);
     color: var(--text);
     border-color: var(--border);
     border-bottom-color: var(--bg);
   }
+  .month-tab { cursor: grab; }
+  .month-tab:active { cursor: grabbing; }
+  .month-tab.dragging { opacity: 0.5; background: var(--surface2); border: 1px dashed var(--muted); }
 
 /* SIDEBAR DRAWER (OFF-CANVAS) */
   .sidebar-overlay {
@@ -160,7 +164,6 @@
   }
   .month-item:active { cursor: grabbing; }
   .month-item:hover { background: var(--surface); color: var(--text); }
-  .month-item.active { background: var(--accent); color: var(--btn-text, #fff); }
   .month-item.active { background: var(--accent); color: var(--btn-text, #fff); }
   .month-item.archived { opacity: 0.5; filter: grayscale(1); cursor: pointer; }
   
@@ -211,6 +214,9 @@
   }
 
   .summary-card {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -219,14 +225,12 @@
   }
 
   .summary-card .label {
-    font-size: 9px;
+    font-size: 10px;
     text-transform: uppercase;
     letter-spacing: .5px;
     color: var(--muted);
     margin-bottom: 4px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.3;
   }
 
   .summary-card .value {
@@ -259,8 +263,9 @@
   .summary-highlight .summary-card .label { font-size: 12px; }
   .summary-highlight .summary-card .value { font-size: 28px; }
   @media (max-width: 480px) {
-    .summary-highlight { flex-wrap: wrap; }
-    .summary-highlight .summary-card { flex: 1 1 100%; }
+    .summary-highlight { flex-wrap: wrap; gap: 8px; }
+    .summary-highlight .summary-card { flex: 1 1 100%; padding: 14px; }
+    .summary-highlight .summary-card .value { font-size: 24px; }
   }
 
   /* SEÇÕES E TABELAS RESPONSIVAS */
@@ -325,6 +330,7 @@
   .badge.none { background: rgba(86,95,126,.1); color: var(--muted); }
   
   /* Categoria Badge */
+  select.badge { appearance: none; -webkit-appearance: none; }
   .badge.cat { 
     background: rgba(255,255,255,0.03); border: 1px solid var(--border); 
     font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -367,6 +373,8 @@
     font-family: var(--sans); font-size: 13px; transition: border-color .15s;
   }
   .form-control:focus { outline: none; border-color: var(--accent); }
+  /* iOS dá zoom ao focar campo com fonte menor que 16px */
+  @media (hover: none) { .form-control { font-size: 16px; } }
   input[type="color"].form-control { padding: 2px 4px; height: 38px; cursor: pointer; }
   select.form-control option { background: var(--surface); color: var(--text); }
 
@@ -397,7 +405,9 @@
   
   /* Ajuste de Botões na Tabela */
   .row-actions { opacity: 0; transition: opacity .15s; white-space: nowrap; text-align: right; }
-  tr:hover .row-actions { opacity: 1; }
+  tr:hover .row-actions, tr:focus-within .row-actions { opacity: 1; }
+  /* no celular não existe hover: os botões de editar/excluir ficavam invisíveis */
+  @media (hover: none) { .row-actions { opacity: 1; } }
 
   /* LISTA DE CATEGORIAS */
   .cat-list { margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); max-height: 200px; overflow-y: auto; }
