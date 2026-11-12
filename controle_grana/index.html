@@ -21,18 +21,14 @@
     --danger: #ff4d6a;
     --warn: #ffb547;
     --ok: #00d4aa;
-    --muted: #6b7394;
+    --muted: #565f7e;
     --text: #e2e5f0;
     --text2: #9aa3c2;
     --mono: 'JetBrains Mono', monospace;
     --sans: 'Inter', sans-serif;
-    color-scheme: dark;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .btn:active { transform: translateY(1px); }
-  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
 
   body {
     background: var(--bg);
@@ -57,7 +53,7 @@
   .header-top {
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     margin-bottom: 16px;
     flex-wrap: wrap; 
     gap: 16px;
@@ -80,7 +76,6 @@
   }
 
   .logo {
-    margin-right: auto;
     font-size: 18px;
     font-weight: 700;
     letter-spacing: -0.5px;
@@ -124,14 +119,15 @@
   }
   .month-tab:hover { color: var(--text); background: var(--surface); }
   .month-tab.active {
+	
+	.month-tab { cursor: grab; }
+	.month-tab:active { cursor: grabbing; }
+	.month-tab.dragging { opacity: 0.5; background: var(--surface2); border: 1px dashed var(--muted); }
     background: var(--bg);
     color: var(--text);
     border-color: var(--border);
     border-bottom-color: var(--bg);
   }
-  .month-tab { cursor: grab; }
-  .month-tab:active { cursor: grabbing; }
-  .month-tab.dragging { opacity: 0.5; background: var(--surface2); border: 1px dashed var(--muted); }
 
 /* SIDEBAR DRAWER (OFF-CANVAS) */
   .sidebar-overlay {
@@ -164,6 +160,7 @@
   }
   .month-item:active { cursor: grabbing; }
   .month-item:hover { background: var(--surface); color: var(--text); }
+  .month-item.active { background: var(--accent); color: var(--btn-text, #fff); }
   .month-item.active { background: var(--accent); color: var(--btn-text, #fff); }
   .month-item.archived { opacity: 0.5; filter: grayscale(1); cursor: pointer; }
   
@@ -214,9 +211,6 @@
   }
 
   .summary-card {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -225,12 +219,14 @@
   }
 
   .summary-card .label {
-    font-size: 10px;
+    font-size: 9px;
     text-transform: uppercase;
     letter-spacing: .5px;
     color: var(--muted);
     margin-bottom: 4px;
-    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .summary-card .value {
@@ -263,9 +259,8 @@
   .summary-highlight .summary-card .label { font-size: 12px; }
   .summary-highlight .summary-card .value { font-size: 28px; }
   @media (max-width: 480px) {
-    .summary-highlight { flex-wrap: wrap; gap: 8px; }
-    .summary-highlight .summary-card { flex: 1 1 100%; padding: 14px; }
-    .summary-highlight .summary-card .value { font-size: 24px; }
+    .summary-highlight { flex-wrap: wrap; }
+    .summary-highlight .summary-card { flex: 1 1 100%; }
   }
 
   /* SEÇÕES E TABELAS RESPONSIVAS */
@@ -330,7 +325,6 @@
   .badge.none { background: rgba(86,95,126,.1); color: var(--muted); }
   
   /* Categoria Badge */
-  select.badge { appearance: none; -webkit-appearance: none; }
   .badge.cat { 
     background: rgba(255,255,255,0.03); border: 1px solid var(--border); 
     font-weight: 600; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
@@ -373,8 +367,6 @@
     font-family: var(--sans); font-size: 13px; transition: border-color .15s;
   }
   .form-control:focus { outline: none; border-color: var(--accent); }
-  /* iOS dá zoom ao focar campo com fonte menor que 16px */
-  @media (hover: none) { .form-control { font-size: 16px; } }
   input[type="color"].form-control { padding: 2px 4px; height: 38px; cursor: pointer; }
   select.form-control option { background: var(--surface); color: var(--text); }
 
@@ -405,9 +397,7 @@
   
   /* Ajuste de Botões na Tabela */
   .row-actions { opacity: 0; transition: opacity .15s; white-space: nowrap; text-align: right; }
-  tr:hover .row-actions, tr:focus-within .row-actions { opacity: 1; }
-  /* no celular não existe hover: os botões de editar/excluir ficavam invisíveis */
-  @media (hover: none) { .row-actions { opacity: 1; } }
+  tr:hover .row-actions { opacity: 1; }
 
   /* LISTA DE CATEGORIAS */
   .cat-list { margin-top: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); max-height: 200px; overflow-y: auto; }
@@ -628,6 +618,35 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeExpenseModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveExpense()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-refund">
+  <div class="modal" style="max-width: 420px;">
+    <h3 id="modal-refund-title"><i class="fa-solid fa-rotate-left"></i> Estorno na Fatura</h3>
+    <p style="margin-bottom: 16px; color: var(--text2); font-size: 13px;">O valor é descontado do total da fatura deste mês. Se for estorno de compra parcelada, coloca o valor integral que o banco devolveu.</p>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Descrição</label>
+        <input class="form-control" id="ref-name" type="text" placeholder="ex: Estorno Amazon">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Categoria (opcional)</label>
+        <select class="form-control" id="ref-category"></select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Valor estornado (R$)</label>
+      <input class="form-control money-input-mask" type="text" inputmode="numeric" id="ref-value" placeholder="0,00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <input class="form-control" id="ref-obs" type="text" placeholder="opcional">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeRefundModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveRefund()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1052,6 +1071,7 @@ function setSort(col) {
 }
 
 function getStatusWeight(exp) {
+  if (exp.refund) return -1;
   const e = Number(exp.estimated || 0), f = Number(exp.future || 0), a = Number(exp.actual || 0);
   const val = Math.max(a, f);
   if (e === 0 && val === 0) return 0;
@@ -1066,6 +1086,7 @@ function populateCategorySelects() {
   const emptyOption = `<option value="">Selecione...</option>`;
   document.getElementById('exp-category').innerHTML = emptyOption + options;
   document.getElementById('pix-category').innerHTML = emptyOption + options;
+  document.getElementById('ref-category').innerHTML = `<option value="">Sem categoria</option>` + options;
 }
 
 function openCatModal() {
@@ -1142,7 +1163,7 @@ function renderChart(month) {
   
   month.expenses.forEach(e => {
       const val = Number(e.future || 0); 
-      if(val > 0) { 
+      if(val > 0 || (e.refund && e.categoryId)) { 
           const cat = getCategory(e.categoryId || e.category);
           if (!catTotals[cat.name]) catTotals[cat.name] = { val: 0, color: cat.color };
           catTotals[cat.name].val += val; 
@@ -1160,6 +1181,7 @@ function renderChart(month) {
   
   const labels = [], dataVals = [], colors = [];
   Object.keys(catTotals).forEach(catName => {
+      if (catTotals[catName].val <= 0) return; // estorno maior que os gastos da categoria
       labels.push(catName); 
       dataVals.push(catTotals[catName].val); 
       colors.push(catTotals[catName].color);
@@ -1489,7 +1511,10 @@ function renderAll() {
     <div class="section">
       <div class="section-header">
         <div class="section-title"><i class="fa-regular fa-credit-card"></i> Gastos Cartão / Faturas</div>
-        <button class="btn btn-primary btn-sm" onclick="openExpenseModal()"><i class="fa-solid fa-plus"></i> Adicionar</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="openRefundModal()" style="color:var(--ok);" title="Lançar estorno na fatura"><i class="fa-solid fa-rotate-left"></i> Estorno</button>
+          <button class="btn btn-primary btn-sm" onclick="openExpenseModal()"><i class="fa-solid fa-plus"></i> Adicionar</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table>
@@ -1508,6 +1533,7 @@ function renderAll() {
           <tbody id="expenses-body">
             ${month.expenses.length === 0 ? `<tr><td colspan="8"><div class="empty"><div class="icon"><i class="fa-solid fa-receipt"></i></div><p>Nenhum gasto de fatura ainda.</p></div></td></tr>` : 
             month.expenses.slice().sort((a,b) => {
+              if (!!a.refund !== !!b.refund) return a.refund ? 1 : -1; // estornos sempre no fim
               let res = 0;
               if (sortCol === 'name') res = a.name.localeCompare(b.name);
               else if (sortCol === 'category') res = getCategory(a.categoryId || a.category).name.localeCompare(getCategory(b.categoryId || b.category).name);
@@ -1516,6 +1542,21 @@ function renderAll() {
               return res * sortDir;
             }).map(exp => {
               const cat = getCategory(exp.categoryId || exp.category);
+              if (exp.refund) return `
+                <tr>
+                  <td><i class="fa-solid fa-rotate-left" style="color:var(--ok); font-size:11px; margin-right:6px"></i><strong>${exp.name}</strong>${lastEditBadge(exp)}</td>
+                  <td>${exp.categoryId ? `<span class="badge cat" style="border-color:${cat.color}; color:${cat.color}">${cat.name}</span>` : '<span style="color:var(--muted)">—</span>'}</td>
+                  <td class="right money" style="color:var(--muted)">—</td>
+                  <td class="right money" style="color:var(--ok)">${fmt(exp.future)}</td>
+                  <td class="right money" style="color:var(--ok)">${fmt(exp.actual)}</td>
+                  <td style="color:var(--text2);font-size:12px">${exp.obs || '—'}</td>
+                  <td><span class="badge ok"><i class="fa-solid fa-rotate-left"></i> Estorno</span></td>
+                  <td class="row-actions">
+                    <button class="btn btn-ghost btn-sm" onclick="editRefund('${exp.id}')" title="Editar"><i class="fa-solid fa-pen"></i></button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteExpense('${exp.id}')" title="Excluir"><i class="fa-solid fa-xmark"></i></button>
+                  </td>
+                </tr>
+              `;
               return `
                 <tr>
                   <td><strong>${exp.name}</strong>${lastEditBadge(exp)}</td>
@@ -1649,7 +1690,7 @@ function renderLog(month) {
     const totalDiff = edits.reduce((sum, ed) => sum + ed.diff, 0);
     const initialVal = currentVal - totalDiff; 
 
-    all.push({type:'expense', name:e.name, amount: initialVal, method:'Fatura', obs:e.obs, ts:e.ts, id: e.id});
+    all.push({type:'expense', name: (e.refund && !/^estorno/i.test(e.name)) ? 'Estorno: ' + e.name : e.name, amount: initialVal, method:'Fatura', obs:e.obs, ts:e.ts, id: e.id, isRefund: !!e.refund});
 
     edits.forEach(ed => {
       all.push({type:'expense', name:e.name + ' (ajuste)', amount: ed.diff, method:'Fatura', obs:'Valor alterado', ts:ed.ts, id: e.id, isEdit: true, editTs: ed.ts});
@@ -1704,7 +1745,7 @@ function renderLog(month) {
 
     return `
       <div class="log-entry">
-        <div class="log-icon ${colorClass}">${item.type === 'expense' ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-sack-dollar"></i>'}</div>
+        <div class="log-icon ${colorClass}">${item.isRefund ? '<i class="fa-solid fa-rotate-left"></i>' : item.type === 'expense' ? '<i class="fa-solid fa-money-bill-wave"></i>' : '<i class="fa-solid fa-sack-dollar"></i>'}</div>
         <div class="log-details">
           <div class="log-name">${item.name}</div>
           <div class="log-meta">
@@ -1764,6 +1805,7 @@ document.querySelectorAll('.modal-overlay').forEach(el => {
       else if(el.id === 'modal-categories') closeCatModal();
       else if(el.id === 'modal-settings') closeSettingsModal();
       else if(el.id === 'modal-quick-add') closeQuickAdd();
+      else if(el.id === 'modal-refund') closeRefundModal();
       else el.classList.remove('open'); 
     }
   });
@@ -1782,6 +1824,7 @@ function createMonth() {
     const lastMonth = data.months[data.months.length - 1];
     
     lastMonth.expenses.forEach(e => {
+      if (e.refund) return; // estorno vale só pro mês em que foi lançado
       const cat = getCategory(e.categoryId || e.category);
       let isFixa = cat.name.toLowerCase().includes('fixa');
       
@@ -1917,6 +1960,61 @@ function deleteExpense(id) {
   
   save(); 
   renderAll();
+}
+
+// ===== ESTORNOS (FATURA) =====
+// Estorno é um item da fatura com refund: true e valor negativo em Futuro e
+// Real. Vale pra fatura como um todo (ex: compra parcelada estornada de uma
+// vez), então abate sozinho do total e da sobra. Só mexe no gráfico se tiver
+// categoria.
+let editingRefundId = null;
+
+function openRefundModal() {
+  editingRefundId = null;
+  document.getElementById('modal-refund-title').innerHTML = '<i class="fa-solid fa-rotate-left"></i> Estorno na Fatura';
+  ['ref-name','ref-category','ref-value','ref-obs'].forEach(id => document.getElementById(id).value = '');
+  openModal('modal-refund');
+  setTimeout(() => document.getElementById('ref-name').focus(), 100);
+}
+function closeRefundModal() { editingRefundId = null; closeModal('modal-refund'); }
+
+function editRefund(id) {
+  const month = data.months.find(m => m.id === currentMonth);
+  const r = month.expenses.find(e => e.id === id);
+  if (!r) return;
+  editingRefundId = id;
+  document.getElementById('modal-refund-title').innerHTML = '<i class="fa-solid fa-pen"></i> Editar Estorno';
+  document.getElementById('ref-name').value = r.name;
+  document.getElementById('ref-category').value = r.categoryId || r.category || '';
+  setMoneyValue('ref-value', Math.abs(Number(r.actual) || Number(r.future) || 0));
+  document.getElementById('ref-obs').value = r.obs || '';
+  openModal('modal-refund');
+}
+
+function saveRefund() {
+  const name = document.getElementById('ref-name').value.trim();
+  const categoryId = document.getElementById('ref-category').value;
+  const value = Math.abs(getMoneyValue('ref-value'));
+  const obs = document.getElementById('ref-obs').value.trim();
+  if (!name) return alert('Coloca a descrição!');
+  if (!value) return alert('Coloca o valor do estorno!');
+
+  const month = data.months.find(m => m.id === currentMonth);
+  const now = Date.now();
+
+  if (editingRefundId) {
+    const idx = month.expenses.findIndex(e => e.id === editingRefundId);
+    if (idx > -1) {
+      const oldObj = month.expenses[idx];
+      const diff = -value - (Number(oldObj.actual) || Number(oldObj.future) || 0);
+      const edits = oldObj.edits || [];
+      if (diff !== 0) edits.push({ diff, ts: now });
+      month.expenses[idx] = { ...oldObj, name, categoryId, future: -value, actual: -value, obs, edits, updatedAt: now };
+    }
+  } else {
+    month.expenses.push({ id: genId(), refund: true, name, categoryId, estimated: 0, future: -value, actual: -value, obs, ts: now, updatedAt: now });
+  }
+  save(); closeRefundModal(); renderAll();
 }
 
 // ===== GASTOS PIX =====
