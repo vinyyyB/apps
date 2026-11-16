@@ -5,16 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Treino">
-<meta name="theme-color" content="#0B0B0C">
+<meta name="theme-color" content="#08111F">
 <title>Treino</title>
 <style>
   /* Temas próprios do Treino. */
-  :root,[data-tema=carbono]{ --bg:#0B0B0C; --s1:#151517; --s2:#1E1E21; --line:#2A2A2F; --ink:#F4F4F5; --mut:#A1A1AA; --dim:#66666E; --acc:#FF6A2B; --on:#0B0B0C; --ok:#3DDC84; --amb:#FFB547; --low:#FF4D5E; color-scheme:dark }
-  [data-tema=volt]{ --bg:#0A0B08; --s1:#13150F; --s2:#1B1E15; --line:#2A2E20; --ink:#F1F5E6; --mut:#A4AA90; --dim:#6A705A; --acc:#C8F542; --on:#0A0B08; --ok:#C8F542; --amb:#FFC14D; --low:#FF5C5C; color-scheme:dark }
-  [data-tema=oceano]{ --bg:#08111F; --s1:#0F1A2C; --s2:#152339; --line:#20314D; --ink:#E7EEFB; --mut:#8EA0C0; --dim:#5A6A88; --acc:#2EE6C8; --on:#08111F; --ok:#2EE6C8; --amb:#FFC062; --low:#FF6B7D; color-scheme:dark }
-  [data-tema=ameixa]{ --bg:#110C14; --s1:#1A131F; --s2:#231A2A; --line:#33263C; --ink:#F6EEF8; --mut:#AD9AB6; --dim:#75637E; --acc:#FF5C8D; --on:#110C14; --ok:#5EE0A8; --amb:#FFB65C; --low:#FF5C8D; color-scheme:dark }
+  :root,[data-tema=oceano]{ --bg:#08111F; --s1:#0F1A2C; --s2:#152339; --line:#20314D; --ink:#E7EEFB; --mut:#8EA0C0; --dim:#5A6A88; --acc:#2EE6C8; --on:#08111F; --ok:#2EE6C8; --amb:#FFC062; --low:#FF6B7D; color-scheme:dark }
+  [data-tema=grafite]{ --bg:#111316; --s1:#1A1D21; --s2:#22262B; --line:#30353C; --ink:#ECEEF1; --mut:#9AA1AB; --dim:#636A74; --acc:#7AA2FF; --on:#111316; --ok:#4ADE80; --amb:#FBBF4D; --low:#FF6B6B; color-scheme:dark }
+  [data-tema=floresta]{ --bg:#0B1410; --s1:#111D17; --s2:#17261F; --line:#23362C; --ink:#E7F2EC; --mut:#93AA9D; --dim:#5E7568; --acc:#34D399; --on:#0B1410; --ok:#34D399; --amb:#FBBF4D; --low:#FF6B6B; color-scheme:dark }
   [data-tema=claro]{ --bg:#F5F6F8; --s1:#FFFFFF; --s2:#EEF0F3; --line:#E1E4EA; --ink:#0F1115; --mut:#5E6573; --dim:#9AA0AB; --acc:#2563FF; --on:#FFFFFF; --ok:#12A150; --amb:#C27A00; --low:#E5383B; color-scheme:light }
-  [data-tema=areia]{ --bg:#F3EEE6; --s1:#FFFBF5; --s2:#EBE4D8; --line:#DED5C6; --ink:#1E1A15; --mut:#6F6658; --dim:#A39985; --acc:#D9532B; --on:#FFFBF5; --ok:#2F8F5B; --amb:#B7791F; --low:#C8352E; color-scheme:light }
+  [data-tema=menta]{ --bg:#F1F6F3; --s1:#FFFFFF; --s2:#E7EFEA; --line:#D8E3DC; --ink:#0F1A15; --mut:#5A6B62; --dim:#94A39A; --acc:#0E9F6E; --on:#FFFFFF; --ok:#0E9F6E; --amb:#B7791F; --low:#D93A3A; color-scheme:light }
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;background:var(--bg);color:var(--ink)}
@@ -454,8 +453,8 @@ const INT = {
   pesado:{nome:'Pesado',sub:'1 no tanque',m:1.2,f:1.3}, falha:{nome:'Falha',sub:'até não ir',m:1.4,f:1.6}
 };
 const PRONTO = .9, REP_MIN = 7, REP_MAX = 15;
-const TEMAS = [['carbono','Carbono',['#0B0B0C','#F4F4F5','#FF6A2B']],['volt','Volt',['#0A0B08','#F1F5E6','#C8F542']],['oceano','Oceano',['#08111F','#E7EEFB','#2EE6C8']],
-               ['ameixa','Ameixa',['#110C14','#F6EEF8','#FF5C8D']],['claro','Claro',['#F5F6F8','#0F1115','#2563FF']],['areia','Areia',['#F3EEE6','#1E1A15','#D9532B']]];
+const TEMAS = [['oceano','Oceano',['#08111F','#E7EEFB','#2EE6C8']],['grafite','Grafite',['#111316','#ECEEF1','#7AA2FF']],['floresta','Floresta',['#0B1410','#E7F2EC','#34D399']],
+               ['claro','Claro',['#F5F6F8','#0F1115','#2563FF']],['menta','Menta',['#F1F6F3','#0F1A15','#0E9F6E']]];
 
 /* ---------- utilidades ---------- */
 const $ = id => document.getElementById(id);
@@ -553,7 +552,7 @@ function fichaInicial(){
   fichas.forEach(emOrdem);
   return fichas;
 }
-const estadoInicial = () => ({ treinos:fichaInicial(), sessoes:[], cfg:{fadiga:3, teto:10, alvo:10, maxEx:8, tema:'carbono'}, catalogo:{extra:{}, ocultos:[]}, atual:null });
+const estadoInicial = () => ({ treinos:fichaInicial(), sessoes:[], cfg:{fadiga:3, teto:10, alvo:10, maxEx:8, tema:'oceano'}, catalogo:{extra:{}, ocultos:[]}, atual:null });
 
 /* ---------- estado + sincronia ---------- */
 let E;
@@ -564,7 +563,7 @@ const sync = (typeof criaSync==='function') ? criaSync({
   aviso: (tipo, msg) => { if (tipo==='erro' && sync && sync.ativo()) toast(msg); }
 }) : null;
 E = (sync && sync.carregar()) || estadoInicial();
-function completar(){ E.cfg=Object.assign({fadiga:3, teto:10, alvo:10, maxEx:8, tema:'carbono'}, E.cfg); E.catalogo=Object.assign({extra:{}, ocultos:[]}, E.catalogo); }
+function completar(){ E.cfg=Object.assign({fadiga:3, teto:10, alvo:10, maxEx:8, tema:'oceano'}, E.cfg); E.catalogo=Object.assign({extra:{}, ocultos:[]}, E.catalogo); }
 completar();
 function salvar(){ if (sync) sync.salvar(); else try{ localStorage.setItem('treino', JSON.stringify(E)); }catch(e){} }
 
@@ -839,7 +838,7 @@ ${secoes}`;
 }
 
 function render(){
-  const tema = TEMAS.find(t=>t[0]===E.cfg.tema) ? E.cfg.tema : 'carbono';
+  const tema = TEMAS.find(t=>t[0]===E.cfg.tema) ? E.cfg.tema : 'oceano';
   document.documentElement.dataset.tema = tema;
   const mt=document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', TEMAS.find(t=>t[0]===tema)[2][0]);
   const app=$('app');
@@ -984,7 +983,7 @@ const telaTreinos = () => `<div class="seg"><button data-sub="meu" class="${subT
 function telaAjustes(){
   const tab=Object.keys(MUSC).map(k=>`<tr><td>${MUSC[k].nome}</td><td>${MUSC[k].h}h</td></tr>`).join('');
   return `<div class="rot" style="margin-top:0">Tema</div>
-    <div class="temas">${TEMAS.map(([k,n,c])=>`<button data-esctema="${k}" class="${k===(E.cfg.tema||'carbono')?'on':''}"><span class="tprev" style="background:${c[0]}"><i style="background:${c[1]}"></i><i style="background:${c[2]}"></i></span>${n}</button>`).join('')}</div>
+    <div class="temas">${TEMAS.map(([k,n,c])=>`<button data-esctema="${k}" class="${k===(E.cfg.tema||'oceano')?'on':''}"><span class="tprev" style="background:${c[0]}"><i style="background:${c[1]}"></i><i style="background:${c[2]}"></i></span>${n}</button>`).join('')}</div>
     <div class="rot">Regras</div>
     <div class="caixa"><div class="dupla">
       <div class="campo"><label>Limite de fadiga</label><input type="number" min="1" max="8" step="0.5" data-cfg="fadiga" value="${E.cfg.fadiga}"></div>
