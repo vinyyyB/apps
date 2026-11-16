@@ -14,6 +14,7 @@ computador por um Worker na Cloudflare.
 | Caderneta | `controle_faltas/` | Controle de faltas por matéria, em horas-aula |
 | Planner | `planner/` | Semana e quadros de tarefas |
 | Grana | `controle_grana/` | Gastos, contas e categorias por mês |
+| Treino | `treino/` | Rodízio de treinos da academia, recuperação por músculo e cargas |
 
 ### Caderneta
 
