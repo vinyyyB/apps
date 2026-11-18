@@ -253,6 +253,16 @@
   .tab-h{width:100%;font-size:12.5px;border-collapse:collapse;margin:4px 0 12px}
   .tab-h td{padding:5px 0;border-top:1px solid var(--line)}
   .tab-h td:last-child{text-align:right;color:var(--ink)}
+  .modal-fundo{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:8}
+  .modal{background:var(--bg);border:1px solid var(--line);border-bottom:0;border-radius:18px 18px 0 0;padding:18px 16px calc(env(safe-area-inset-bottom) + 16px);width:100%;max-width:520px;max-height:88vh;overflow:auto}
+  .modal-cab{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .modal-cab h2{margin:0;font-size:18px;letter-spacing:-.3px}
+  .modal-cab button{color:var(--mut);font-size:14px}
+  .comp-li{display:flex;align-items:baseline;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:14.5px}
+  .comp-li:first-child{border-top:0;padding-top:0}
+  .comp-li .tx{flex:1;min-width:0}
+  .comp-li small{display:block;font-size:12px;color:var(--dim)}
+  .comp-li .n{color:var(--mut);font-size:13px;white-space:nowrap}
   .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--bg);font-size:13px;font-weight:500;padding:9px 16px;border-radius:99px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;z-index:9}
 </style>
 </head>
@@ -526,6 +536,7 @@ function planoEfetivo(t){
 }
 const principais = t => [...new Set(exs(t).map(musculoDe))];
 const treinoDe = l => E.treinos.find(t=>t.letra===l);
+const treinoAtual = () => E.atual && (E.atual.extra || treinoDe(E.atual.treino));
 
 /* Ordem certa num treino: multiarticulares primeiro (do maior pro menor músculo), depois os
    isolados, também do maior pro menor; panturrilha, lombar e abdômen no fim. */
@@ -587,6 +598,7 @@ const academia = id => (E.academias||[]).find(a=>a.id===id);
 completar();
 function salvar(){ if (sync) sync.salvar(); else try{ localStorage.setItem('treino', JSON.stringify(E)); }catch(e){} }
 
+let modal=null;
 let aba='hoje', subTreinos='meu', aberto=null, exAberto=null, pk=null, tela=null, catSel=0, catEd=null;
 
 /* ======================= recuperação e recomendação ======================= */
@@ -705,6 +717,52 @@ function sugestao(nome, cargas, n, acad){
   const sobe = reps.length>0 && reps.every(r=>r!=null && r>=REP_MAX) && kgs.every(k=>k!=null);
   const texto = `Última (${fmtCurta(u.data)}): ${kgs.map(k=>k==null?'–':fmtNum(k)).join('/')} kg`+(reps.some(r=>r!=null)?' × '+reps.map(r=>r==null?'–':r).join('/'):'');
   return { kgs:encher(sobe?kgs.map(k=>k+passo(k)):kgs), reps:encher(sobe?[]:reps), texto, sobe };
+}
+
+/* ---------- treino complementar (sexta e sábado) ----------
+   Até maxEx exercícios pra chegar no recomendado da semana (REC_SEM) dos músculos já recuperados.
+   Escolha gulosa: a cada passo, o exercício que mais fecha séries que faltam, sem passar do teto por
+   treino; músculo secundário conta meia série e, se não estiver recuperado, pesa contra. */
+function volSemana(){
+  const v={}; E.sessoes.filter(s=>s.data>=segunda(hojeStr())).forEach(s=>{ const x=volumeSessao(s); for (const m in x) v[m]=(v[m]||0)+x[m]; }); return v;
+}
+function complementar(){
+  const rec=recuperacao(Date.now(), E.sessoes), pronto=m=>!rec[m] || rec[m].pct>=PRONTO, vol=volSemana(), falta={};
+  Object.keys(REC_SEM).forEach(m=>{ const d=REC_SEM[m]-(vol[m]||0); if (pronto(m) && d>=1) falta[m]=d; });
+  const seus=E.treinos.flatMap(t=>exs(t));
+  const cands=Object.keys(REG).filter(r=>falta[REG[r].m]).map(r=>{ const e=seus.find(x=>x.reg===r); return { r, nome:e?e.nome:catalogo(r)[0], cargas:e?e.cargas:'' }; }).filter(c=>c.nome);
+  const teto=+E.cfg.teto||10, max=+E.cfg.maxEx||8, dia={}, ex=[];
+  while (ex.length<max){
+    let best=null;
+    cands.forEach(c=>{
+      if (ex.some(e=>e.reg===c.r)) return;
+      const m=REG[c.r].m, resta=Math.min(falta[m]||0, teto-(dia[m]||0)); if (resta<1) return;
+      const n=clamp(Math.round(resta),2,4); let sc=Math.min(n,resta)+(REG[c.r].c?.1:0)+.01*resta;
+      secundarios(c.nome,m).forEach(x=>{ const f=falta[x]||0; sc += !pronto(x) ? -n/2 : f>0 ? Math.min(n/2, f) : -n/8; });
+      if (!best || sc>best.sc) best={...c, m, n, sc};
+    });
+    if (!best || best.sc<1) break;
+    ex.push({ id:uid(), nome:best.nome, reg:best.r, series:best.n, cargas:best.cargas });
+    falta[best.m]=(falta[best.m]||0)-best.n; dia[best.m]=(dia[best.m]||0)+best.n;
+    secundarios(best.nome,best.m).forEach(x=>{ falta[x]=(falta[x]||0)-best.n/2; dia[x]=(dia[x]||0)+best.n/2; });
+  }
+  const t={ id:'comp', letra:'+', nome:'Complementar', opcional:true, ex };
+  t.ex=ordenado(t);
+  const depois={...vol}; const p=planoEfetivo(t); for (const m in p) depois[m]=(depois[m]||0)+p[m];
+  return { t, antes:vol, depois };
+}
+const fimDeSemana = () => [5,6].includes(diaSemana(hojeStr()));
+function modalComplementar(){
+  const c=complementar(), t=c.t;
+  const muda=Object.keys(REC_SEM).filter(m=>(c.antes[m]||0)<REC_SEM[m] && Math.round((c.depois[m]||0)*2)!==Math.round((c.antes[m]||0)*2));
+  return `<div class="modal-fundo" data-modalfecha><div class="modal" role="dialog" aria-label="Treino complementar">
+    <div class="modal-cab"><h2>Treino complementar</h2><button data-modalfecha>Fechar</button></div>
+    ${t.ex.length?`<div class="caixa">${t.ex.map(e=>`<div class="comp-li"><span class="tx">${esc(e.nome)}<small>${REG[e.reg].nome}</small></span><span class="n">${e.series} séries</span></div>`).join('')}</div>
+    <div class="rot">Séries na semana</div>
+    <div class="caixa">${muda.map(m=>`<div class="cmp-li"><span>${MUSC[m].nome}</span><span>${fmtNum(c.antes[m]||0)} → <b>${fmtNum(c.depois[m])}</b><br><small style="color:var(--dim)">Recomendado: ${REC_SEM[m]}</small></span></div>`).join('')}</div>
+    <button class="btn" data-comecarcomp>Começar</button>`
+    :'<div class="caixa"><p class="vazio">Nada pra completar com os músculos recuperados.</p></div>'}
+  </div></div>`;
 }
 
 /* ======================= recomendado ======================= */
@@ -871,7 +929,7 @@ function render(){
   document.documentElement.dataset.tema = tema;
   const mt=document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', TEMAS.find(t=>t[0]===tema)[2][0]);
   const app=$('app');
-  if (E.atual && treinoDe(E.atual.treino)){ app.innerHTML=telaTreinando(); ligarTreinando(); return; }
+  if (E.atual && treinoAtual()){ app.innerHTML=telaTreinando(); ligarTreinando(); return; }
   E.atual=null;
   const h=hojeStr();
   if (tela) app.innerHTML = `
@@ -881,7 +939,7 @@ function render(){
     <div class="topo"><h1>Treino<small>${DIAS[diaSemana(h)]}, ${fmtCurta(h)}</small></h1>
       <span class="icones"><button class="ico" data-tela="exercicios" aria-label="Exercícios" title="Exercícios">${ICO_HALTER}</button><button class="ico" data-tela="ajustes" aria-label="Ajustes" title="Ajustes">${ICO_AJUSTE}</button><a class="link" href="../">Meus apps</a></span></div>
     <nav class="abas">${[['hoje','Hoje'],['hist','Histórico'],['treinos','Treinos']].map(([k,n])=>`<button data-aba="${k}" class="${aba===k?'on':''}">${n}</button>`).join('')}</nav>
-    ${aba==='hoje'?telaHoje():aba==='hist'?telaHist():telaTreinos()}`;
+    ${aba==='hoje'?telaHoje():aba==='hist'?telaHist():telaTreinos()}${modal==='comp'?modalComplementar():''}`;
   ligar();
 }
 
@@ -915,7 +973,8 @@ function telaHoje(){
     return `<div class="rec"><span>${MUSC[m].nome}<small>${fmtNum(volSem[m]||0)} séries na semana</small><small>Recomendado: ${REC_SEM[m]}</small></span><div class="barra"><i style="width:${Math.round(r.pct*100)}%;background:${cor}"></i></div><span class="h">${fmtQuando(r.libera)}</span></div>`; }).join('')
     :'<p class="vazio">Tudo recuperado.</p>');
   const lim=somaDias(h,-30);
-  return `${topo}
+  const comp = fimDeSemana() && complementar().t.ex.length ? '<button class="btn sec" data-modal="comp">Montar treino complementar</button>' : '';
+  return `${topo}${comp}
     <div class="atalhos">${E.treinos.map(t=>`<button data-iniciar="${esc(t.letra)}" class="${t.opcional?'opc':''}" aria-label="Começar treino ${esc(t.letra)}">${esc(t.letra)}<small>${esc(t.nome)}</small></button>`).join('')}</div>
     <div class="rot">Semana</div>
     <div class="caixa"><div class="semana">${sem}</div></div>
@@ -928,7 +987,7 @@ function telaHist(){
   return `<div class="caixa">${E.sessoes.slice().sort((a,b)=>b.ts-a.ts).map(s=>{
     const t=treinoDe(s.treino), ab=String(aberto)===String(s.id), n=(s.itens||[]).length;
     return `<div class="li"><button class="li-cab" data-abre="${s.id}"><span class="L">${esc(s.treino)}</span><span class="tx"><b>${DIAS_L[diaSemana(s.data)]}, ${fmtCurta(s.data)}</b>
-      <small>${esc(t?t.nome:'')}${academia(s.academia)?' · '+esc(academia(s.academia).nome):''} · ${(INT[s.intens]||INT.moderado).nome.toLowerCase()} · ${n} exercício${n===1?'':'s'}</small></span><span class="seta">${ab?'▾':'›'}</span></button>
+      <small>${esc(t?t.nome:s.treino==='+'?'Complementar':'')}${academia(s.academia)?' · '+esc(academia(s.academia).nome):''} · ${(INT[s.intens]||INT.moderado).nome.toLowerCase()} · ${n} exercício${n===1?'':'s'}</small></span><span class="seta">${ab?'▾':'›'}</span></button>
       ${ab?`<div class="det">${n?s.itens.map(i=>`<div><b>${esc(i.ex)}</b> — ${i.series.map(x=>(x.kg==null?'–':fmtNum(x.kg))+(x.reps?'×'+x.reps:'')).join(' · ')}</div>`).join(''):'Registrado sem séries.'}
         <button class="apaga" data-apagar="${s.id}">Apagar registro</button></div>`:''}</div>`;
   }).join('')}</div>`;
@@ -1044,6 +1103,7 @@ function telaAjustes(){
       <p><b>Volume.</b> Referência de 10–20 séries por músculo por semana e ~10 por treino (estudos de dose-resposta de Schoenfeld e colegas), com cada músculo 2x por semana. </p>
       <p><b>Recomendado por semana.</b> Meio da faixa em que cada músculo mais cresce, pelas referências de volume da Renaissance Periodization (Israetel e colegas). Série de exercício secundário conta meia.</p>
       <table class="tab-h">${Object.keys(FAIXA).map(m=>`<tr><td>${MUSC[m].nome}</td><td>${FAIXA[m][0]}–${FAIXA[m][1]} → ${REC_SEM[m]}</td></tr>`).join('')}</table>
+      <p><b>Treino complementar.</b> Na sexta e no sábado. Junta até ${E.cfg.maxEx} exercícios pros músculos recuperados que ainda não chegaram no recomendado da semana: a cada passo entra o que mais fecha séries que faltam, de 2 a 4 séries, sem passar do teto por treino. Exercício que cansa músculo ainda não recuperado perde a vez.</p>
       <p style="margin:0"><b>Carga.</b> Faixa de ${REP_MIN} a ${REP_MAX} repetições: bateu ${REP_MAX} em todas as séries, sobe 2,5 kg (até 30 kg) ou 5 kg.</p></div>
     <div class="rot">Dados</div>
     <div class="caixa"><p class="nota" style="margin-top:0">${sync&&sync.ativo()?'Sincronizando com os outros aparelhos.':'Sincronia desligada: os dados ficam só neste aparelho. Configure na tela <a class="lk" href="../">Meus apps</a>.'}</p>
@@ -1079,6 +1139,9 @@ function ligar(){
   Q('[data-aba]', b=>b.onclick=()=>{ aba=b.dataset.aba; aberto=null; exAberto=null; pk=null; render(); scrollTo(0,0); });
   Q('[data-sub]', b=>b.onclick=()=>{ subTreinos=b.dataset.sub; aberto=null; pk=null; render(); });
   Q('[data-iniciar]', b=>b.onclick=()=>iniciar(b.dataset.iniciar));
+  Q('[data-modal]', b=>b.onclick=()=>{ modal=b.dataset.modal; const y=scrollY; render(); scrollTo(0,y); });
+  Q('[data-modalfecha]', b=>b.onclick=ev=>{ if (ev.target!==b) return; modal=null; const y=scrollY; render(); scrollTo(0,y); });
+  Q('[data-comecarcomp]', b=>b.onclick=iniciarComplementar);
   Q('[data-abre]', b=>b.onclick=()=>{ const v=b.dataset.abre; aberto = String(aberto)===v ? null : v; exAberto=null; pk=null; render(); });
   Q('[data-apagar]', b=>b.onclick=()=>{ if(confirm('Apagar esse registro?')){ E.sessoes=E.sessoes.filter(s=>String(s.id)!==b.dataset.apagar); re(); } });
   Q('[data-tipo]', b=>b.onclick=()=>{ const [i,v]=ids(b.dataset.tipo); E.treinos[i].opcional=!!v; re(); });
@@ -1124,7 +1187,7 @@ function ligar(){
    só pro dia, até tocar em "Salvar no treino". */
 function blocos(){
   const A=E.atual; if (A.blocos) return A.blocos;
-  const lista=exs(treinoDe(A.treino)), esc0=A.esc||{};
+  const lista=exs(treinoAtual()), esc0=A.esc||{};
   const ordem=(A.ordem && A.ordem.length===lista.length) ? A.ordem : lista.map((_,k)=>k);
   A.blocos=ordem.map(bi=>{ const e=lista[bi]; return { k:'b'+bi, de:e.id, nome:esc0[bi]||e.nome, reg:e.reg, series:series(e), cargas:e.cargas||'', orig:e.nome }; });
   const sets={}; Object.keys(A.sets||{}).forEach(key=>{ sets[/^b/.test(key)?key:'b'+key]=A.sets[key]; }); A.sets=sets;   // treino começado antes desta versão
@@ -1155,7 +1218,7 @@ function diretas(semK){
 }
 const limiteDia = m => Math.max(+E.cfg.teto||10, blocos().filter(b=>REG[b.reg].m===m).reduce((a,b)=>a+(b.series||3),0));
 function difereDaFicha(){
-  const a=blocos(), f=exs(treinoDe(E.atual.treino));
+  const a=blocos(), f=exs(treinoAtual());
   return a.length!==f.length || a.some((b,i)=>norm(b.nome)!==norm(f[i].nome) || b.reg!==f[i].reg);
 }
 function salvarNaFicha(){
@@ -1180,8 +1243,15 @@ function iniciar(letra){
   pk=null; acadNova=false; blocos();
   salvar(); render(); scrollTo(0,0);
 }
+function iniciarComplementar(){
+  const c=complementar(); if (!c.t.ex.length) return;
+  const acad = academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
+  E.atual={ treino:'+', extra:c.t, data:hojeStr(), academia:acad, sets:{}, trocando:null, intens:null };
+  pk=null; acadNova=false; modal=null; blocos();
+  salvar(); render(); scrollTo(0,0);
+}
 function telaTreinando(){
-  const A=E.atual, t=treinoDe(A.treino), bl=blocos(), dir=diretas(null);
+  const A=E.atual, t=treinoAtual(), bl=blocos(), dir=diretas(null);
   if (!A.academia || !academia(A.academia)) A.academia=academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
   const ms=[...new Set(bl.map(b=>REG[b.reg].m))];
   const chips=ms.map(m=>{ const v=dir[m]||0; return `<span class="chip${v===0?' zero':v>=limiteDia(m)?' cheio':''}">${MUSC[m].nome}<b>${v}</b></span>`; }).join('');
@@ -1214,13 +1284,13 @@ function telaTreinando(){
     <div class="chips">${chips}${bl.length>(+E.cfg.maxEx||8)?`<span class="chip cheio-ex">${bl.length} exercícios</span>`:''}</div>
     <div id="blocos">${html}</div>${html?'':'<div class="caixa" style="margin-top:12px"><p class="vazio">Nenhum exercício. Dá pra registrar mesmo assim.</p></div>'}
     ${pk&&pk.alvo==='add'?caixaPick(bl, null, true):'<div class="ed-ac"><button class="add" data-addex>+ exercício</button></div>'}
-    ${difereDaFicha()?`<button class="btn sec" id="salvarFicha">Salvar no treino ${esc(t.letra)}</button>`:''}
+    ${!A.extra && difereDaFicha()?`<button class="btn sec" id="salvarFicha">Salvar no treino ${esc(t.letra)}</button>`:''}
     <div class="rot">Intensidade</div>
     <div class="intens">${Object.keys(INT).map(k=>`<button data-int="${k}" class="${A.intens===k?'on':''}"><b>${INT[k].nome}</b></button>`).join('')}</div>
     <button class="btn" id="finalizar" ${A.intens?'':'disabled'}>${A.intens?'Finalizar treino':'Escolha a intensidade'}</button>`;
 }
 function ligarTreinando(){
-  const A=E.atual, t=treinoDe(A.treino), bl=blocos(), Q=(s,f)=>document.querySelectorAll(s).forEach(f);
+  const A=E.atual, t=treinoAtual(), bl=blocos(), Q=(s,f)=>document.querySelectorAll(s).forEach(f);
   const re=()=>{ const y=scrollY; salvar(); render(); scrollTo(0,y); };
   const par = s => { const i=s.lastIndexOf(':'); return [bl.find(b=>b.k===s.slice(0,i)), +s.slice(i+1)]; };
   const bk = k => bl.find(b=>b.k===k);
@@ -1265,7 +1335,7 @@ function ligarTreinando(){
     if(!itens.length && !confirm(`Nenhum exercício marcado como feito. Registrar o ${A.treino} mesmo assim?`)) return;
     E.sessoes.push({ id:Date.now(), ts:A.data===hojeStr()?Date.now():tsDe(A.data,18), data:A.data, treino:A.treino, academia:A.academia||null, intens:A.intens, itens });
     if (A.academia) E.cfg.academia=A.academia;
-    E.atual=null; pk=null; aba='hoje'; salvar(); render(); scrollTo(0,0); toast(`Treino ${t.letra} registrado`);
+    E.atual=null; pk=null; aba='hoje'; salvar(); render(); scrollTo(0,0); toast(A.extra?'Treino complementar registrado':`Treino ${t.letra} registrado`);
   };
 }
 
