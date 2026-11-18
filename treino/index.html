@@ -135,13 +135,15 @@
   .dica{margin:8px 0 0 26px;font-size:12.5px;color:var(--mut)}
   .dica .sobe{color:var(--ok);font-weight:550}
   .series{margin:4px 0 0 26px}
-  .serie{display:grid;grid-template-columns:16px 1fr 1fr;gap:8px;align-items:center;margin-top:8px}
+  .serie{display:grid;grid-template-columns:16px 1fr 1fr 30px;gap:8px;align-items:center;margin-top:8px}
   .serie>span{font-size:12px;font-weight:600;color:var(--dim);text-align:center}
   .serie input{padding:10px;text-align:center;font-variant-numeric:tabular-nums}
   .un{position:relative}
   .un small{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--dim);pointer-events:none}
   .acoes{display:flex;align-items:center;gap:16px;margin:10px 0 0 26px}
-  .acoes .mais{font-size:13px;color:var(--mut)}
+  .acoes .mais{width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--s2);color:var(--ink);font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .lixo{width:30px;height:38px;display:flex;align-items:center;justify-content:center;color:var(--dim);border-radius:8px}
+  .lixo:active{color:var(--low);background:var(--s2)}
   .ck{margin-left:auto;height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--s2);color:var(--mut);font-size:13.5px;font-weight:600}
   .ck.on{background:var(--ok);border-color:var(--ok);color:var(--on)}
   .intens{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
@@ -902,6 +904,7 @@ const moverItem = (a, de, para) => { const [x]=a.splice(de,1); a.splice(para,0,x
 
 /* ======================= telas ======================= */
 const ICO_HALTER = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/></svg>';
+const ICO_LIXO = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
 const ICO_AJUSTE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>';
 
 /* ---------- tela Exercícios: catálogo por categoria e músculo ---------- */
@@ -1274,8 +1277,8 @@ function telaTreinando(){
       ${dica.length?`<div class="dica">${dica.join(' · ')}</div>`:''}
       <div class="series">${rows.map((r,si)=>`<div class="serie"><span>${si+1}</span>
         <div class="un"><input inputmode="decimal" data-kg="${b.k}:${si}" value="${r.kg==null?'':fmtNum(r.kg)}" placeholder="carga" aria-label="carga série ${si+1}"><small>kg</small></div>
-        <div class="un"><input inputmode="numeric" data-reps="${b.k}:${si}" value="${r.reps==null?'':r.reps}" placeholder="${REP_MIN}–${REP_MAX}" aria-label="repetições série ${si+1}"><small>rep</small></div></div>`).join('')}</div>
-      <div class="acoes"><button class="mais" data-mais="${b.k}">+ série</button>${rows.length>1?`<button class="mais" data-menos="${b.k}">− série</button>`:''}
+        <div class="un"><input inputmode="numeric" data-reps="${b.k}:${si}" value="${r.reps==null?'':r.reps}" placeholder="${REP_MIN}–${REP_MAX}" aria-label="repetições série ${si+1}"><small>rep</small></div>${rows.length>1?`<button class="lixo" data-menos="${b.k}:${si}" aria-label="apagar série ${si+1}">${ICO_LIXO}</button>`:'<span></span>'}</div>`).join('')}</div>
+      <div class="acoes"><button class="mais" data-mais="${b.k}" aria-label="adicionar série">+</button>
         <button class="ck${tudo?' on':''}" data-ok="${b.k}">${tudo?'✓ Feito':'Feito'}</button></div></div>`;
   }).join('');
   return `<div class="topo"><h1>Treinando</h1><button class="link" id="cancelar">Cancelar</button></div>
@@ -1320,7 +1323,7 @@ function ligarTreinando(){
   Q('[data-kg]', el=>el.oninput=()=>{ const [b,si]=par(el.dataset.kg), v=parseFloat(el.value.replace(',','.')); setsDe(b)[si].kg=isNaN(v)?null:v; salvar(); });
   Q('[data-reps]', el=>el.oninput=()=>{ const [b,si]=par(el.dataset.reps), v=parseInt(el.value,10); setsDe(b)[si].reps=isNaN(v)?null:v; salvar(); });
   Q('[data-mais]', b=>b.onclick=()=>{ const r=linhas(b.dataset.mais), u=r[r.length-1]||{}; r.push({kg:u.kg??null, reps:u.reps??null, ok:false}); re(); });
-  Q('[data-menos]', b=>b.onclick=()=>{ const r=linhas(b.dataset.menos); if(r.length>1) r.pop(); re(); });
+  Q('[data-menos]', b=>b.onclick=()=>{ const [x,si]=par(b.dataset.menos), r=setsDe(x); if(r.length>1) r.splice(si,1); re(); });
   Q('[data-ok]', b=>b.onclick=()=>{ const r=linhas(b.dataset.ok), tudo=r.every(x=>x.ok); r.forEach(x=>x.ok=!tudo); re(); });
   Q('[data-int]', b=>b.onclick=()=>{ A.intens=b.dataset.int; re(); });
   const bls=$('blocos'); if (bls) arrastavel([...bls.children], (de,para)=>{ moverItem(A.blocos,de,para); A.trocando=null; pk=null; re(); });
