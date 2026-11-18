@@ -208,6 +208,7 @@
   .acad-nova{display:flex;gap:8px;align-items:center}
   .acad-nova input{width:160px;padding:6px 11px;font-size:13px;border-radius:99px}
   .acad-nova button{color:var(--acc);font-size:13px;font-weight:600}
+  .aviso{font-size:13px;line-height:1.4;padding:9px 11px;border-radius:9px;margin-bottom:10px;background:color-mix(in srgb,var(--amb) 16%,transparent);color:var(--ink)}
   .op.tira{color:var(--low);border-style:dashed}
   .pk-bloco{margin:10px 0 0 26px}
   .pk-bloco .caixa-add{margin-top:0}
@@ -528,7 +529,8 @@ function catGarante(nome, r){ if (!catalogo(r).some(n=>norm(n)===norm(nome))) ca
 /* Costas por inteiro: um exercício em cada parte (2 remadas: dorsal médio e superior; 2 puxadas: largura e
    inferior). Nenhuma parte das costas pode ter dois exercícios no mesmo treino. */
 const FOCOS_COSTAS = ['costas_meio','costas_sup','dorsal_larg','dorsal_inf'];
-const focoOcupado = (itens, r, sem) => FOCOS_COSTAS.includes(r) && itens.some(x=>x!==sem && x.nome && x.reg===r);
+const ocupante = (itens, r, sem) => FOCOS_COSTAS.includes(r) ? itens.find(x=>x!==sem && x.nome && x.reg===r) || null : null;
+const focoOcupado = (itens, r, sem) => !!ocupante(itens, r, sem);
 /* O mesmo exercício (ou um sinônimo dele) já está na lista? */
 const mesmoEx = (a, b) => norm((typeof canon==='function'&&canon(a))||a)===norm((typeof canon==='function'&&canon(b))||b);
 const jaTem = (lista, nome, sem) => lista.some(x=>x!==sem && x.nome && mesmoEx(x.nome, nome));
@@ -1066,23 +1068,26 @@ function telaHist(){
    Serve pro "+ exercício" e pra trocar um exercício já cadastrado. */
 const catDe = r => REG[r] ? CATS.findIndex(c=>c[1].includes(REG[r].m)) : null;
 const similares = r => catalogo(r);
-function caixaPick(itens, e, fechar){
+/* feito(item): no treino do dia, se o exercício já tem série feita (aí não dá pra trocar ele). */
+function caixaPick(itens, e, fechar, feito){
   const p=pk, tem=new Set(itens.filter(x=>x!==e).map(x=>norm(x.nome)));
+  let aviso='';
   let trilha, titulo, corpo;
   if (p.nivel==='macro'){
     trilha='<b>Categoria</b>';
     corpo=CATS.map(([n],k)=>`<button class="op${k===p.c?' on':''}" data-pkc="${k}">${n}</button>`).join('');
   } else if (p.nivel==='foco'){
     trilha=`<button data-pk="macro">${CATS[p.c][0]}</button><span>›</span><b>Músculo</b>`;
-    corpo=Object.keys(REG).filter(r=>CATS[p.c][1].includes(REG[r].m) && !focoOcupado(itens, r, e)).map(r=>`<button class="op${r===p.r?' on':''}" data-pkr="${r}">${REG[r].nome}</button>`).join('');
+    corpo=Object.keys(REG).filter(r=>CATS[p.c][1].includes(REG[r].m)).map(r=>`<button class="op${r===p.r?' on':''}" data-pkr="${r}">${REG[r].nome}</button>`).join('');
   } else {
     trilha=`<button data-pk="macro">${CATS[p.c][0]}</button><span>›</span><button data-pk="foco">${REG[p.r].nome}</button>`;
-    const nomes=similares(p.r).filter(n=>!tem.has(norm(n)));
-    corpo=nomes.map(n=>`<button class="op${e&&norm(e.nome)===norm(n)?' on':''}" data-pkn="${esc(n)}">${esc(n)}</button>`).join('')
-      +(p.novo?'':'<button class="op outro" data-pkoutro>+ novo</button>');
+    const nomes=similares(p.r).filter(n=>!tem.has(norm(n))), oc=ocupante(itens, p.r, e), preso=oc && feito && feito(oc);
+    if (oc) aviso=`<div class="aviso">${REG[p.r].nome} já tem <b>${esc(oc.nome)}</b>${preso?', feito hoje.':'. Toque num exercício pra trocar por ele.'}</div>`;
+    corpo=preso ? '' : nomes.map(n=>`<button class="op${e&&norm(e.nome)===norm(n)?' on':''}" data-pkn="${esc(n)}">${esc(n)}</button>`).join('')
+      +(preso||p.novo?'':'<button class="op outro" data-pkoutro>+ novo</button>');
   }
   return `<div class="caixa-add"><div class="ca-cab"><span class="trilha">${trilha}</span>${fechar?'<button class="fecha" data-pkfecha>Fechar</button>':''}</div>
-    <div class="ops">${corpo}</div>${p.nivel==='ex'&&p.novo?'<div class="pk-novo"><input id="pkNovo" placeholder="Nome do exercício" enterkeyhint="done"><button data-pknovook>Adicionar</button></div>':''}</div>`;
+    ${aviso}<div class="ops">${corpo}</div>${p.nivel==='ex'&&p.novo?'<div class="pk-novo"><input id="pkNovo" placeholder="Nome do exercício" enterkeyhint="done"><button data-pknovook>Adicionar</button></div>':''}</div>`;
 }
 const passou = t => exs(t).length > (+E.cfg.maxEx||8);
 /* Liga os botões do seletor (editor e treino do dia). escolher(nome) aplica a escolha. */
@@ -1237,7 +1242,8 @@ function ligar(){
   if (pk) ligarPick(re, nome=>{
     const sem=pk.alvo==='add'?null:treinoAberto().ex.find(x=>x.id===pk.alvo);
     if (jaTem(treinoAberto().ex, nome, sem)){ toast('Já está no treino'); re(); return; }
-    if (focoOcupado(treinoAberto().ex, pk.r, sem)){ toast(REG[pk.r].nome+' já tem exercício'); re(); return; }
+    const oc=ocupante(treinoAberto().ex, pk.r, sem);
+    if (oc){ const velho=oc.nome; oc.nome=nome; oc.cargas=''; pk=null; toast(`${velho} → ${nome}`); re(); return; }
     if (pk.alvo==='add'){ inserir(treinoAberto(), {id:uid(), nome, reg:pk.r, series:3, cargas:''}); pk=null; toast('Adicionado'); }
     else { const e=treinoAberto().ex.find(x=>x.id===pk.alvo); if (norm(e.nome)!==norm(nome)) e.cargas=''; e.nome=nome; e.reg=pk.r; }
     re(); }, ()=>{
@@ -1355,7 +1361,7 @@ function telaTreinando(){
     return `<div class="ex${tudo?' ok':''}${cheio?' pula':''}">
       <div class="ex-cab">${ALCA}<span class="n">${pos+1}</span><span class="nm"><b>${esc(b.nome)}</b><small>${REG[b.reg].nome}</small></span>
         <button class="troca${aberto?' on':''}" data-trocar="${b.k}">${aberto?'Fechar':'Trocar'}</button></div>
-      ${pickAqui?`<div class="pk-bloco">${caixaPick(bl, b, false)}</div>`
+      ${pickAqui?`<div class="pk-bloco">${caixaPick(bl, b, false, x=>feitasBloco(x)>0)}</div>`
         :A.trocando===b.k?`<div class="lista">${ops.map(n=>`<button class="op${norm(n)===norm(b.nome)?' on':''}" data-op="${b.k}" data-nome="${esc(n)}">${esc(n)}</button>`).join('')}
 
           <button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
@@ -1371,7 +1377,7 @@ function telaTreinando(){
     ${acad}
     <div class="chips">${chips}${bl.length>(+E.cfg.maxEx||8)?`<span class="chip cheio-ex">${bl.length} exercícios</span>`:''}</div>
     <div id="blocos">${html}</div>${html?'':'<div class="caixa" style="margin-top:12px"><p class="vazio">Nenhum exercício. Dá pra registrar mesmo assim.</p></div>'}
-    ${pk&&pk.alvo==='add'?caixaPick(bl, null, true):'<div class="ed-ac"><button class="add" data-addex>+ exercício</button></div>'}
+    ${pk&&pk.alvo==='add'?caixaPick(bl, null, true, x=>feitasBloco(x)>0):'<div class="ed-ac"><button class="add" data-addex>+ exercício</button></div>'}
     ${!A.extra && difereDaFicha()?`<button class="btn sec" id="salvarFicha">Salvar no treino ${esc(t.letra)}</button>`:''}
     <div class="rot">Intensidade</div>
     <div class="intens">${Object.keys(INT).map(k=>`<button data-int="${k}" class="${A.intens===k?'on':''}"><b>${INT[k].nome}</b></button>`).join('')}</div>
@@ -1402,7 +1408,9 @@ function ligarTreinando(){
   if (pk) ligarPick(re, nome=>{
     const sem=pk.alvo==='add'?null:bk(pk.alvo);
     if (jaTem(A.blocos, nome, sem)){ toast('Já está no treino'); re(); return; }
-    if (focoOcupado(A.blocos, pk.r, sem)){ toast(REG[pk.r].nome+' já tem exercício'); re(); return; }
+    const oc=ocupante(A.blocos, pk.r, sem);
+    if (oc){ if (feitasBloco(oc)){ toast(REG[pk.r].nome+' já foi feito hoje'); re(); return; }
+      const velho=oc.nome; oc.nome=nome; pk=null; A.trocando=null; toast(`${velho} → ${nome}`); re(); return; }
     if (pk.alvo==='add'){ A.blocos.push({ k:'n'+uid(), de:null, nome, reg:pk.r, series:3, cargas:'', orig:null }); toast('Adicionado'); }
     else { const x=bk(pk.alvo); if (x){ x.nome=nome; x.reg=pk.r; } }
     pk=null; re(); });
