@@ -208,6 +208,7 @@
   .acad-nova{display:flex;gap:8px;align-items:center}
   .acad-nova input{width:160px;padding:6px 11px;font-size:13px;border-radius:99px}
   .acad-nova button{color:var(--acc);font-size:13px;font-weight:600}
+  .quebra{flex-basis:100%;height:0}
   .op.tira{color:var(--low);border-style:dashed}
   .pk-bloco{margin:10px 0 0 26px}
   .pk-bloco .caixa-add{margin-top:0}
@@ -825,6 +826,29 @@ const REC_SEM = Object.fromEntries(Object.entries(FAIXA).map(([m,[a,b]])=>[m, Ma
 const GRANDES = ['peito','costas','dorsal','delt_lat','delt_post','biceps','triceps','quadriceps','posterior','gluteo'];
 const SUPERIORES = ['peito','costas','dorsal','delt_ant','delt_lat','delt_post','biceps','triceps','braquial'];
 const copia = o => JSON.parse(JSON.stringify(o));
+/* ---------- regra de costas: 2 remadas e 2 puxadas ----------
+   O treino de costas é o treino base com mais séries de costas. regraCostas devolve o que trocar,
+   acrescentar ou tirar numa lista; livre(item) diz se o item pode mexer (no dia: sem série feita). */
+const FOCO_PADRAO = { remada:['costas_meio','costas_sup'], puxada:['dorsal_larg','dorsal_inf'] };
+function treinoCostas(lista){
+  const c=(lista||E.treinos.filter(t=>!t.opcional)).map(t=>({t, v:(planoDireto(t).costas||0)+(planoDireto(t).dorsal||0)})).sort((a,b)=>b.v-a.v)[0];
+  return c && c.v>0 ? c.t : null;
+}
+function regraCostas(lista, livre, evitar){
+  const atual=lista.slice(), acoes=[], tipo=e=>padrao(e.nome,e.reg), doTipo=t=>atual.filter(e=>tipo(e)===t);
+  const novo = t => {
+    const tem=new Set(atual.map(e=>e.reg)), ord=FOCO_PADRAO[t].slice().sort((a,b)=>tem.has(a)-tem.has(b)), ok=(n,r)=>padrao(n,r)===t && !jaTem(atual,n);
+    for (const r of ord){ const n=catalogo(r).find(n=>ok(n,r) && !(evitar||[]).some(o=>mesmoEx(o,n))) || catalogo(r).find(n=>ok(n,r)); if (n) return {nome:n, reg:r}; }
+    return null;
+  };
+  const sobra = l => { const c={}; l.forEach(e=>c[e.reg]=(c[e.reg]||0)+1); return l.filter(livre).reverse().sort((a,b)=>c[b.reg]-c[a.reg])[0]; };
+  for (const [f,sb] of [['puxada','remada'],['remada','puxada']]){
+    while (doTipo(f).length<2 && doTipo(sb).length>2){ const sai=sobra(doTipo(sb)), n=sai&&novo(f); if (!n) break; const e={...n, series:series(sai)}; atual[atual.indexOf(sai)]=e; acoes.push({tipo:'trocar', sai, entra:e}); }
+    while (doTipo(f).length<2){ const n=novo(f); if (!n) break; const e={...n, series:3}; atual.push(e); acoes.push({tipo:'adicionar', entra:e}); }
+  }
+  for (const t of ['remada','puxada']) while (doTipo(t).length>2){ const sai=sobra(doTipo(t)); if (!sai) break; atual.splice(atual.indexOf(sai),1); acoes.push({tipo:'remover', sai}); }
+  return acoes;
+}
 function nomeAuto(t, orig){
   const ms=principais(t), antes=principais(orig);
   if (ms.length===antes.length && ms.every(m=>antes.includes(m))) return t.nome;
@@ -860,24 +884,13 @@ function gerarRecomendado(){
   });
   const maxEx=+E.cfg.maxEx||8, cabe=t=>exs(t).length<maxEx;
   // 1b. treino de costas: 2 remadas e 2 puxadas
-  const costas=base().map(t=>({t, v:(planoDireto(t).costas||0)+(planoDireto(t).dorsal||0)})).sort((a,b)=>b.v-a.v)[0];
-  if (costas && costas.v>0){
-    const t=costas.t, POR='costas: 2 remadas e 2 puxadas';
-    const doTipo = tipo => exs(t).filter(e=>padrao(e.nome,e.reg)===tipo);
-    const focos = { remada:['costas_meio','costas_sup'], puxada:['dorsal_larg','dorsal_inf'] };
-    const novo = tipo => {
-      const tem=new Set(exs(t).map(e=>e.reg)), ord=focos[tipo].slice().sort((a,b)=>tem.has(a)-tem.has(b));
-      for (const r of ord){ const n=catalogo(r).find(n=>padrao(n,r)===tipo && !jaTem(prop.flatMap(x=>x.ex), n)) || catalogo(r).find(n=>padrao(n,r)===tipo && !jaTem(t.ex, n)); if (n) return {id:uid(), nome:n, reg:r, series:3, cargas:''}; }
-      return null;
-    };
-    const sobra = lista => { const c={}; lista.forEach(e=>c[e.reg]=(c[e.reg]||0)+1); return lista.slice().reverse().sort((a,b)=>c[b.reg]-c[a.reg])[0]; };
-    const trocar = (sai, tipo) => { const n=novo(tipo); if (!n) return false; n.series=series(sai); t.ex[t.ex.indexOf(sai)]=n; ops.push({tipo:'trocar', de:t.letra, nome:sai.nome, ex:n, porque:POR}); return true; };
-    for (const [falta, sobrando] of [['puxada','remada'],['remada','puxada']]){
-      while (doTipo(falta).length<2 && doTipo(sobrando).length>2) if (!trocar(sobra(doTipo(sobrando)), falta)) break;
-      while (doTipo(falta).length<2){ const n=novo(falta); if (!n) break; inserir(t, n); ops.push({tipo:'adicionar', nome:n.nome, para:t.letra, ex:n, porque:POR}); }
-    }
-    for (const tipo of ['remada','puxada']) while (doTipo(tipo).length>2){ const sai=sobra(doTipo(tipo)); t.ex=t.ex.filter(e=>e!==sai); ops.push({tipo:'remover', nome:sai.nome, de:t.letra, porque:POR}); }
-  }
+  const tc=treinoCostas(base());
+  if (tc){ const t=prop.find(x=>x.id===tc.id), POR='costas: 2 remadas e 2 puxadas';
+    regraCostas(exs(t), ()=>true, prop.filter(x=>x!==t).flatMap(x=>x.ex).map(e=>e.nome)).forEach(a=>{
+      if (a.tipo==='trocar'){ const n={id:uid(), nome:a.entra.nome, reg:a.entra.reg, series:a.entra.series, cargas:''}; t.ex[t.ex.indexOf(a.sai)]=n; ops.push({tipo:'trocar', de:t.letra, nome:a.sai.nome, ex:n, porque:POR}); }
+      if (a.tipo==='adicionar'){ const n={id:uid(), nome:a.entra.nome, reg:a.entra.reg, series:3, cargas:''}; inserir(t, n); ops.push({tipo:'adicionar', nome:n.nome, para:t.letra, ex:n, porque:POR}); }
+      if (a.tipo==='remover'){ t.ex=t.ex.filter(e=>e!==a.sai); ops.push({tipo:'remover', nome:a.sai.nome, de:t.letra, porque:POR}); }
+    }); }
   // 2. músculo que você treina, mas sem série direta na base
   [...universo].forEach(m=>{
     const dir={}; base().forEach(t=>{ const p=planoDireto(t); for(const k in p) dir[k]=(dir[k]||0)+p[k]; });
@@ -1304,12 +1317,22 @@ function trocarAcademia(id){
   Object.keys(A.sets).forEach(k=>{ if (!okRows(A.sets[k])) delete A.sets[k]; });   // o que não foi feito pega a carga dessa academia
 }
 
+function costasNoDia(){
+  const A=E.atual; if (A.costas) return; A.costas=true;
+  const t=treinoCostas(); if (A.extra || !t || t.letra!==A.treino) return;
+  regraCostas(A.blocos, b=>!feitasBloco(b), []).forEach(a=>{
+    const tira = b => Object.keys(A.sets).forEach(k=>{ if (k.split('|')[0]===b.k) delete A.sets[k]; });
+    if (a.tipo==='trocar'){ tira(a.sai); Object.assign(a.sai, {nome:a.entra.nome, reg:a.entra.reg}); }
+    if (a.tipo==='adicionar') A.blocos.push({ k:'n'+uid(), de:null, nome:a.entra.nome, reg:a.entra.reg, series:3, cargas:'', orig:null });
+    if (a.tipo==='remover'){ tira(a.sai); A.blocos=A.blocos.filter(b=>b!==a.sai); }
+  });
+}
 let acadNova=false;
 function iniciar(letra){
   if (!treinoDe(letra)) return;
   const acad = academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
   E.atual={ treino:letra, data:hojeStr(), academia:acad, sets:{}, trocando:null, intens:null };
-  pk=null; acadNova=false; blocos();
+  pk=null; acadNova=false; blocos(); costasNoDia();
   salvar(); render(); scrollTo(0,0);
 }
 function iniciarComplementar(){
@@ -1320,7 +1343,7 @@ function iniciarComplementar(){
   salvar(); render(); scrollTo(0,0);
 }
 function telaTreinando(){
-  const A=E.atual, t=treinoAtual(), bl=blocos(), dir=diretas(null);
+  const A=E.atual, t=treinoAtual(); blocos(); costasNoDia(); const bl=A.blocos, dir=diretas(null);
   if (!A.academia || !academia(A.academia)) A.academia=academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
   const ms=[...new Set(bl.map(b=>REG[b.reg].m))];
   const chips=ms.map(m=>{ const v=dir[m]||0; return `<span class="chip${v===0?' zero':v>=limiteDia(m)?' cheio':''}">${MUSC[m].nome}<b>${v}</b></span>`; }).join('');
@@ -1330,7 +1353,10 @@ function telaTreinando(){
   const html=bl.map((b,pos)=>{
     const m=REG[b.reg].m, feito=feitasBloco(b)>0, outrosM=diretas(b.k)[m]||0, cheio=!feito && outrosM>=limiteDia(m);
     const outros=new Set(bl.filter(x=>x!==b).map(x=>norm(x.nome)));
-    const ops=[...new Map([b.nome].concat(catalogo(b.reg)).map(n=>[norm(n),n])).values()].filter(n=>norm(n)===norm(b.nome) || !outros.has(norm(n)));
+    const livres = l => [...new Map(l.map(n=>[norm(n),n])).values()].filter(n=>norm(n)===norm(b.nome) || !outros.has(norm(n)));
+    const ops=livres([b.nome].concat(catalogo(b.reg)));
+    const pb=padrao(b.nome,b.reg), mais = pb ? [...new Map(['remada','puxada'].flatMap(t=>FOCO_PADRAO[t]).filter(r=>r!==b.reg).flatMap(r=>catalogo(r).filter(n=>padrao(n,r)).map(n=>[norm(n),[n,r]]))).values()]
+      .filter(([n])=>norm(n)!==norm(b.nome) && !outros.has(norm(n)) && !ops.some(o=>norm(o)===norm(n))) : [];
     const rows=setsDe(b), sg=sugestao(b.nome, [], rows.length, A.academia), tudo=rows.every(r=>r.ok);
     const pickAqui=pk && pk.alvo===b.k, aberto=pickAqui || A.trocando===b.k;
     const dica=[sg.texto?esc(sg.texto):'', sg.sobe?'<span class="sobe">↑ sobe a carga</span>':'', cheio?`${MUSC[m].nome} já fechou ${outrosM} séries hoje, pode pular`:''].filter(Boolean);
@@ -1339,7 +1365,8 @@ function telaTreinando(){
         <button class="troca${aberto?' on':''}" data-trocar="${b.k}">${aberto?'Fechar':'Trocar'}</button></div>
       ${pickAqui?`<div class="pk-bloco">${caixaPick(bl, b, false)}</div>`
         :A.trocando===b.k?`<div class="lista">${ops.map(n=>`<button class="op${norm(n)===norm(b.nome)?' on':''}" data-op="${b.k}" data-nome="${esc(n)}">${esc(n)}</button>`).join('')}
-          <button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
+          ${mais.length?`<span class="quebra"></span>${mais.map(([n,r])=>`<button class="op" data-op="${b.k}" data-nome="${esc(n)}" data-reg="${r}">${esc(n)}</button>`).join('')}`:''}
+          <span class="quebra"></span><button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
       ${dica.length?`<div class="dica">${dica.join(' · ')}</div>`:''}
       <div class="series">${rows.map((r,si)=>`<div class="serie"><span>${si+1}</span>
         <div class="un"><input inputmode="decimal" data-kg="${b.k}:${si}" value="${r.kg==null?'':fmtNum(r.kg)}" placeholder="carga" aria-label="carga série ${si+1}"><small>kg</small></div>
@@ -1374,7 +1401,7 @@ function ligarTreinando(){
   const an=$('acadNome'); if (an) an.onkeydown=ev=>{ if (ev.key==='Enter') novaAcad(); };
   // trocar / tirar / acrescentar
   Q('[data-trocar]', b=>b.onclick=()=>{ const k=b.dataset.trocar, ab=A.trocando===k || (pk&&pk.alvo===k); pk=null; A.trocando=ab?null:k; re(); });
-  Q('[data-op]', b=>b.onclick=()=>{ bk(b.dataset.op).nome=b.dataset.nome; A.trocando=null; re(); });
+  Q('[data-op]', b=>b.onclick=()=>{ const x=bk(b.dataset.op); x.reg=b.dataset.reg||x.reg; x.nome=b.dataset.nome; A.trocando=null; re(); });
   Q('[data-outroex]', b=>b.onclick=()=>{ const x=bk(b.dataset.outroex); A.trocando=null; pk={alvo:x.k, nivel:'macro', c:catDe(x.reg), r:x.reg}; re(); });
   Q('[data-tirar]', b=>b.onclick=()=>{
     const x=bk(b.dataset.tirar); if (feitasBloco(x) && !confirm(`Tirar ${x.nome}? As séries feitas dele saem do treino.`)) return;
