@@ -438,11 +438,11 @@ const REG = {
   peito_inf:   {m:'peito', nome:'Peitoral inferior', ex:['Cross-over polia baixa','Supino declinado','Mergulho nas paralelas']},
   tri_longa:   {m:'triceps', nome:'Tríceps, cabeça longa', ex:['Tríceps testa na polia','Tríceps testa','Tríceps testa no cross','Tríceps testa barra','Tríceps francês','Tríceps francês na polia','Tríceps francês halter']},
   tri_lateral: {m:'triceps', nome:'Tríceps, cabeça lateral', ex:['Tríceps corda colado na polia','Tríceps corda','Tríceps coice','Tríceps barra reta']},
-  costas_meio: {m:'costas', c:1, nome:'Dorsal médio', ex:['Remada cavalo','Remada máquina neutra','Remada curvada barra','Remada unilateral halter','Remada serrote','Remada articulada','Remada articulada inclinada']},
-  costas_sup:  {m:'costas', c:1, nome:'Dorsal superior e romboides', ex:['Remada alta máquina','Puxada fechada barra V','Remada alta na polia (pega de baixo)','Remada baixa triângulo']},
-  dorsal_inf:  {m:'dorsal', c:1, nome:'Dorsal inferior', ex:['Puxada polia baixa com triângulo','Pulldown','Puxada supinada','Puxada articulada unilateral supinada','Pullover na polia']},
+  costas_meio: {m:'costas', c:1, nome:'Dorsal médio', ex:['Remada cavalo','Remada máquina neutra','Remada curvada barra','Remada serrote','Remada articulada','Remada articulada inclinada']},
+  costas_sup:  {m:'costas', c:1, nome:'Dorsal superior e romboides', ex:['Remada alta máquina','Remada alta na polia (pega de baixo)']},
+  dorsal_inf:  {m:'dorsal', c:1, nome:'Dorsal inferior', ex:['Puxada polia baixa com triângulo','Puxada fechada barra V','Puxada supinada','Puxada articulada unilateral supinada','Pullover na polia']},
   dorsal_larg: {m:'dorsal', c:1, nome:'Dorsal, largura', ex:['Puxada aberta','Barra fixa','Puxada articulada']},
-  delt_post:   {m:'delt_post', nome:'Ombro posterior', ex:['Elevação costas deitado halter','Face pull','Voador inverso','Posterior de ombro na polia','Crucifixo inverso halter']},
+  delt_post:   {m:'delt_post', nome:'Ombro posterior', ex:['Elevação costas deitado halter','Face pull','Voador inverso','Posterior de ombro na polia']},
   delt_lat:    {m:'delt_lat', nome:'Ombro lateral', ex:['Elevação lateral na polia','Elevação lateral halter','Elevação lateral máquina']},
   delt_ant:    {m:'delt_ant', c:1, nome:'Ombro anterior', ex:['Desenvolvimento banco inclinado','Desenvolvimento halter','Desenvolvimento máquina','Arnold press','Elevação frontal']},
   trapezio:    {m:'trapezio', nome:'Trapézio', ex:['Encolhimento polia','Encolhimento halter','Encolhimento barra']},
@@ -454,12 +454,12 @@ const REG = {
   quad_iso:    {m:'quadriceps', nome:'Quadríceps isolado', ex:['Cadeira extensora','Sissy squat']},
   posterior:   {m:'posterior', nome:'Posterior de coxa', ex:['Mesa flexora','Cadeira flexora','Flexora em pé']},
   post_quadril:{m:'posterior', c:1, nome:'Posterior e quadril', ex:['Stiff','Levantamento terra romeno']},
-  gluteo:      {m:'gluteo', c:1, nome:'Glúteo', ex:['Hip thrust','Elevação pélvica','Glúteo na polia']},
+  gluteo:      {m:'gluteo', c:1, nome:'Glúteo', ex:['Hip thrust','Glúteo na polia']},
   gluteo_med:  {m:'gluteo', nome:'Glúteo médio', ex:['Abdutor','Abdutora máquina']},
   adutor:      {m:'adutor', nome:'Adutores', ex:['Adutor','Adutora máquina']},
   panturrilha: {m:'panturrilha', nome:'Panturrilha', ex:['Panturrilha máquina','Panturrilha no leg','Panturrilha em pé','Panturrilha sentado']},
   abdomen:     {m:'abdomen', nome:'Abdômen', ex:['Abdominal bicicleta','Abdominal inferior','Abdominal na polia','Abdominal máquina','Prancha']},
-  lombar:      {m:'lombar', nome:'Lombar', ex:['Lombar','Hiperextensão','Banco romano']}
+  lombar:      {m:'lombar', nome:'Lombar', ex:['Lombar','Hiperextensão']}
 };
 /* Músculos secundários (contam meia série), pelo nome do exercício. */
 const SECUND = [
@@ -589,12 +589,40 @@ const sync = (typeof criaSync==='function') ? criaSync({
   aviso: (tipo, msg) => { if (tipo==='erro' && sync && sync.ativo()) toast(msg); }
 }) : null;
 E = (sync && sync.carregar()) || estadoInicial();
+/* Nomes diferentes pro mesmo exercício: ficam com um nome só (no treino, no histórico e no treino em andamento). */
+const ALIAS = { 'remada baixa triangulo':'Puxada polia baixa com triângulo', 'remada unilateral halter':'Remada serrote', 'pulldown':'Pullover na polia',
+  'crucifixo inverso halter':'Elevação costas deitado halter', 'elevacao pelvica':'Hip thrust', 'banco romano':'Hiperextensão' };
+const MOVIDOS = ['puxada fechada barra v'];   // mudaram de foco na lista padrão
+const canon = n => ALIAS[norm(n)] || null;
+function unificar(){
+  const c=E.catalogo;
+  Object.keys(c.extra).forEach(r=>c.extra[r]=(c.extra[r]||[]).filter(n=>!canon(n)));
+  E.treinos.forEach(t=>{ t.ex=t.ex.filter(e=>{
+    const k=canon(e.nome);
+    if (k){ if (t.ex.some(x=>x!==e && norm(x.nome)===norm(k))) return false; e.nome=k; e.reg=focoPorNome(k)||e.reg; }
+    else if (MOVIDOS.includes(norm(e.nome))) e.reg=focoPorNome(e.nome)||e.reg;
+    return true; }); });
+  E.sessoes.forEach(s=>(s.itens||[]).forEach(i=>{
+    const k=canon(i.ex)||(MOVIDOS.includes(norm(i.ex))?i.ex:null), r=k&&focoPorNome(k); if (!k) return;
+    i.ex=k; if (r){ i.reg=r; i.m=REG[r].m; i.s=secundarios(k,i.m); } }));
+  const A=E.atual; if (!A || !A.blocos) return;
+  const dela = b => Object.keys(A.sets||{}).filter(x=>x.split('|')[0]===b.k);
+  A.blocos=A.blocos.filter(b=>{
+    const k=canon(b.nome); if (!k){ if (b.orig && canon(b.orig)) b.orig=canon(b.orig); if (MOVIDOS.includes(norm(b.nome))){ b.reg=focoPorNome(b.nome)||b.reg; dela(b).forEach(x=>A.sets[x].reg=b.reg); } return true; }
+    const feito=dela(b).some(x=>A.sets[x].rows.some(r=>r.ok));
+    if (!feito && A.blocos.some(x=>x!==b && norm(x.nome)===norm(k))){ dela(b).forEach(x=>delete A.sets[x]); return false; }
+    const velho=b.k+'|'+norm(b.nome), novo=b.k+'|'+norm(k);
+    b.nome=k; b.reg=focoPorNome(k)||b.reg; if (b.orig && canon(b.orig)) b.orig=k;
+    if (A.sets[velho]){ A.sets[novo]=Object.assign(A.sets[velho], {nome:k, reg:b.reg}); delete A.sets[velho]; }
+    return true; });
+}
 const ACAD_PADRAO = [['cachoeira','PHD Cachoeira'],['terminal','PHD Terminal'],['cajuru','PHD Cajuru']];
 function completar(){
   E.cfg=Object.assign({fadiga:3, teto:10, alvo:10, maxEx:8, tema:'oceano'}, E.cfg); E.catalogo=Object.assign({extra:{}, ocultos:[]}, E.catalogo);
   (E.sessoes||[]).forEach(s=>{ if (s.intens==='falha') s.intens='pesado'; });   // "Falha" saiu: vira Pesado
   if (E.atual && E.atual.intens==='falha') E.atual.intens='pesado';
   if (!Array.isArray(E.academias)) E.academias=ACAD_PADRAO.map(([id,nome])=>({id,nome}));
+  unificar();
 }
 const academia = id => (E.academias||[]).find(a=>a.id===id);
 completar();
