@@ -201,6 +201,20 @@
   .rot-ed{display:block;font-size:11.5px;color:var(--dim);margin:2px 0 0 2px}
   .exe .caixa-add{margin-top:4px}
   .ops{display:flex;flex-wrap:wrap;gap:6px}
+  .acad{margin:14px 0 0}
+  .acad{gap:5px}
+  .acad .op{padding:6px 9px;font-size:12.5px}
+  .acad-nova{display:flex;gap:8px;align-items:center}
+  .acad-nova input{width:160px;padding:6px 11px;font-size:13px;border-radius:99px}
+  .acad-nova button{color:var(--acc);font-size:13px;font-weight:600}
+  .op.tira{color:var(--low);border-style:dashed}
+  .pk-bloco{margin:10px 0 0 26px}
+  .pk-bloco .caixa-add{margin-top:0}
+  .pk-novo{display:flex;gap:10px;align-items:center;margin-top:8px}
+  .pk-novo input{flex:1;min-width:0;padding:8px 10px;font-size:13.5px}
+  .pk-novo button{color:var(--acc);font-weight:600;font-size:13px}
+  .acad-li{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .acad-li .rm{color:var(--low);padding:8px 6px;font-size:14px}
   .add{font-size:13px;color:var(--acc);font-weight:500;margin-top:10px;display:inline-block}
 
   /* recomendado */
@@ -500,6 +514,7 @@ function catPor(nome, r){
   c.ocultos=c.ocultos.filter(x=>x!==n);
   if (!REG[r].ex.some(e=>norm(e)===n)) (c.extra[r]=c.extra[r]||[]).push(nome);
 }
+function catGarante(nome, r){ if (!catalogo(r).some(n=>norm(n)===norm(nome))) catPor(nome, r); }
 const secundarios = (nome, m) => { const n=norm(nome); const r=SECUND.find(([re])=>re.test(n)); return r ? r[1].filter(x=>x!==m) : []; };
 const cargasDe = txt => String(txt||'').split('/').map(x=>parseFloat(x.replace(',','.'))).filter(x=>!isNaN(x));
 const musculoDe = e => REG[e.reg] ? REG[e.reg].m : null;
@@ -563,7 +578,12 @@ const sync = (typeof criaSync==='function') ? criaSync({
   aviso: (tipo, msg) => { if (tipo==='erro' && sync && sync.ativo()) toast(msg); }
 }) : null;
 E = (sync && sync.carregar()) || estadoInicial();
-function completar(){ E.cfg=Object.assign({fadiga:3, teto:10, alvo:10, maxEx:8, tema:'oceano'}, E.cfg); E.catalogo=Object.assign({extra:{}, ocultos:[]}, E.catalogo); }
+const ACAD_PADRAO = [['cachoeira','PHD Cachoeira'],['terminal','PHD Terminal'],['cajuru','PHD Cajuru']];
+function completar(){
+  E.cfg=Object.assign({fadiga:3, teto:10, alvo:10, maxEx:8, tema:'oceano'}, E.cfg); E.catalogo=Object.assign({extra:{}, ocultos:[]}, E.catalogo);
+  if (!Array.isArray(E.academias)) E.academias=ACAD_PADRAO.map(([id,nome])=>({id,nome}));
+}
+const academia = id => (E.academias||[]).find(a=>a.id===id);
 completar();
 function salvar(){ if (sync) sync.salvar(); else try{ localStorage.setItem('treino', JSON.stringify(E)); }catch(e){} }
 
@@ -666,17 +686,19 @@ function semana(){
 }
 
 /* ---------- sugestão de carga: progressão dupla na faixa 7–15 ---------- */
-function ultimaVez(nome){
+/* Só olha a academia escolhida; registro sem academia (de antes) vale pra qualquer uma. */
+function ultimaVez(nome, acad){
   const k=norm(nome);
   for (const s of E.sessoes.slice().sort((a,b)=>b.ts-a.ts)){
+    if (acad && s.academia && s.academia!==acad) continue;
     const it=(s.itens||[]).find(i=>norm(i.ex)===k);
     if (it && it.series.length) return { data:s.data, series:it.series };
   }
   return null;
 }
 const passo = kg => kg<=30 ? 2.5 : 5;
-function sugestao(nome, cargas, n){
-  const u=ultimaVez(nome);
+function sugestao(nome, cargas, n, acad){
+  const u=ultimaVez(nome, acad);
   const encher = a => Array.from({length:n}, (_,i)=> a.length ? a[Math.min(i,a.length-1)] : null);
   if (!u) return { kgs:encher(cargas), reps:encher([]), texto:'', sobe:false };
   const kgs=u.series.map(s=>s.kg), reps=u.series.map(s=>s.reps);
@@ -899,7 +921,7 @@ function telaHist(){
   return `<div class="caixa">${E.sessoes.slice().sort((a,b)=>b.ts-a.ts).map(s=>{
     const t=treinoDe(s.treino), ab=String(aberto)===String(s.id), n=(s.itens||[]).length;
     return `<div class="li"><button class="li-cab" data-abre="${s.id}"><span class="L">${esc(s.treino)}</span><span class="tx"><b>${DIAS_L[diaSemana(s.data)]}, ${fmtCurta(s.data)}</b>
-      <small>${esc(t?t.nome:'')} · ${(INT[s.intens]||INT.moderado).nome.toLowerCase()} · ${n} exercício${n===1?'':'s'}</small></span><span class="seta">${ab?'▾':'›'}</span></button>
+      <small>${esc(t?t.nome:'')}${academia(s.academia)?' · '+esc(academia(s.academia).nome):''} · ${(INT[s.intens]||INT.moderado).nome.toLowerCase()} · ${n} exercício${n===1?'':'s'}</small></span><span class="seta">${ab?'▾':'›'}</span></button>
       ${ab?`<div class="det">${n?s.itens.map(i=>`<div><b>${esc(i.ex)}</b> — ${i.series.map(x=>(x.kg==null?'–':fmtNum(x.kg))+(x.reps?'×'+x.reps:'')).join(' · ')}</div>`).join(''):'Registrado sem séries.'}
         <button class="apaga" data-apagar="${s.id}">Apagar registro</button></div>`:''}</div>`;
   }).join('')}</div>`;
@@ -910,9 +932,8 @@ function telaHist(){
    Serve pro "+ exercício" e pra trocar um exercício já cadastrado. */
 const catDe = r => REG[r] ? CATS.findIndex(c=>c[1].includes(REG[r].m)) : null;
 const similares = r => catalogo(r);
-function caixaPick(t){
-  const p=pk, e=p.alvo==='add'?null:t.ex.find(x=>x.id===p.alvo);
-  const tem=new Set(t.ex.filter(x=>x!==e).map(x=>norm(x.nome)));
+function caixaPick(itens, e, fechar){
+  const p=pk, tem=new Set(itens.filter(x=>x!==e).map(x=>norm(x.nome)));
   let trilha, titulo, corpo;
   if (p.nivel==='macro'){
     trilha='<b>Categoria</b>';
@@ -924,12 +945,26 @@ function caixaPick(t){
     trilha=`<button data-pk="macro">${CATS[p.c][0]}</button><span>›</span><button data-pk="foco">${REG[p.r].nome}</button>`;
     const nomes=similares(p.r).filter(n=>!tem.has(norm(n)));
     corpo=nomes.map(n=>`<button class="op${e&&norm(e.nome)===norm(n)?' on':''}" data-pkn="${esc(n)}">${esc(n)}</button>`).join('')
-      +(p.alvo==='add'?'<button class="op outro" data-pkoutro>Outro nome…</button>':'');
+      +(p.novo?'':'<button class="op outro" data-pkoutro>+ novo</button>');
   }
-  return `<div class="caixa-add"><div class="ca-cab"><span class="trilha">${trilha}</span>${p.alvo==='add'?'<button class="fecha" data-pkfecha>Fechar</button>':''}</div>
-    <div class="ops">${corpo}</div></div>`;
+  return `<div class="caixa-add"><div class="ca-cab"><span class="trilha">${trilha}</span>${fechar?'<button class="fecha" data-pkfecha>Fechar</button>':''}</div>
+    <div class="ops">${corpo}</div>${p.nivel==='ex'&&p.novo?'<div class="pk-novo"><input id="pkNovo" placeholder="Nome do exercício" enterkeyhint="done"><button data-pknovook>Adicionar</button></div>':''}</div>`;
 }
 const passou = t => exs(t).length > (+E.cfg.maxEx||8);
+/* Liga os botões do seletor (editor e treino do dia). escolher(nome) aplica a escolha. */
+function ligarPick(re, escolher, aoFoco){
+  const Q=(s,f)=>document.querySelectorAll(s).forEach(f);
+  Q('[data-pkfecha]', b=>b.onclick=()=>{ pk=null; if (E.atual) E.atual.trocando=null; re(); });
+  Q('[data-pk]', b=>b.onclick=()=>{ pk.nivel=b.dataset.pk; pk.novo=false; re(); });
+  Q('[data-pkc]', b=>b.onclick=()=>{ const c=+b.dataset.pkc; if (c!==pk.c) pk.r=null; pk.c=c; pk.nivel='foco'; pk.novo=false; re(); });
+  Q('[data-pkr]', b=>b.onclick=()=>{ pk.r=b.dataset.pkr; pk.nivel='ex'; pk.novo=false; if (aoFoco) aoFoco(); re(); });
+  Q('[data-pkn]', b=>b.onclick=()=>escolher(b.dataset.pkn));
+  Q('[data-pkoutro]', b=>b.onclick=()=>{ pk.novo=true; re(); const i=$('pkNovo'); if (i) i.focus(); });
+  const ok=()=>{ const i=$('pkNovo'), nome=i&&i.value.trim(); if (!nome) return; catGarante(nome, pk.r); pk.novo=false; escolher(nome); };
+  Q('[data-pknovook]', b=>b.onclick=ok);
+  const i=$('pkNovo'); if (i) i.onkeydown=ev=>{ if (ev.key==='Enter') ok(); };
+}
+const pickEditor = t => caixaPick(t.ex, pk.alvo==='add'?null:t.ex.find(x=>x.id===pk.alvo)||null, pk.alvo==='add');
 function telaMeu(){
   const lista=E.treinos.map((t,i)=>{
     const ab=aberto===t.id, ms=principais(t);
@@ -937,14 +972,14 @@ function telaMeu(){
     if (ab){
       corpo=`<div class="ed"><div class="campo"><label>Nome</label><input data-tnome="${i}" value="${esc(t.nome)}"></div>
         <div class="lista-ex" data-lista="${i}">${t.ex.map((e,j)=>exAberto===e.id?`<div class="exe exi">
-            <label class="rot-ed">Trocar por parecido</label>${caixaPick(t)}
+            <label class="rot-ed">Trocar por parecido</label>${pickEditor(t)}
             <div class="grade"><div class="inteiro"><label>Nome</label><input data-e="${i}:${j}:nome" value="${esc(e.nome)}" placeholder="Nome do exercício"></div>
               <div><label>Séries</label><input inputmode="numeric" data-e="${i}:${j}:series" value="${e.series||''}" placeholder="3"></div>
               <div><label>Cargas (kg)</label><input inputmode="decimal" data-e="${i}:${j}:cargas" value="${esc(e.cargas)}" placeholder="45/50/60"></div></div>
             <div class="exe-ac"><button class="rm" data-rmex="${i}:${j}">Remover</button><button class="ok" data-exab="">OK</button></div>
           </div>`:`<div class="exr exi">${ALCA}<button class="exr-b" data-exab="${e.id}"><span class="tx"><b>${e.nome?esc(e.nome):'sem nome'}</b>
             <small>${[series(e)+' séries', e.cargas?esc(e.cargas)+' kg':'', REG[e.reg]?REG[e.reg].nome:'escolha o foco'].filter(Boolean).join(' · ')}</small></span><span class="seta">›</span></button></div>`).join('')}</div>
-        ${pk&&pk.alvo==='add'?caixaPick(t):`<div class="ed-ac"><button class="add" data-addex="${i}">+ exercício</button>${foraDeOrdem(t)?`<button class="add" data-ordem="${i}">Pôr na ordem certa</button>`:''}</div>`}
+        ${pk&&pk.alvo==='add'?pickEditor(t):`<div class="ed-ac"><button class="add" data-addex="${i}">+ exercício</button>${foraDeOrdem(t)?`<button class="add" data-ordem="${i}">Pôr na ordem certa</button>`:''}</div>`}
         ${E.treinos.length>1?`<button class="btn perigo" data-rmt="${i}">Remover treino ${esc(t.letra)}</button>`:''}</div>`;
     }
     return `<div class="li"><button class="li-cab" data-abre="${t.id}"><span class="L">${esc(t.letra)}</span><span class="tx"><b>${esc(t.nome)}</b>
@@ -984,6 +1019,9 @@ function telaAjustes(){
   const tab=Object.keys(MUSC).map(k=>`<tr><td>${MUSC[k].nome}</td><td>${MUSC[k].h}h</td></tr>`).join('');
   return `<div class="rot" style="margin-top:0">Tema</div>
     <div class="temas">${TEMAS.map(([k,n,c])=>`<button data-esctema="${k}" class="${k===(E.cfg.tema||'oceano')?'on':''}"><span class="tprev" style="background:${c[0]}"><i style="background:${c[1]}"></i><i style="background:${c[2]}"></i></span>${n}</button>`).join('')}</div>
+    <div class="rot">Academias</div>
+    <div class="caixa">${E.academias.map((a,i)=>`<div class="acad-li"><input data-acadnome="${i}" value="${esc(a.nome)}" aria-label="Nome da academia">${E.academias.length>1?`<button class="rm" data-acadrm="${i}" aria-label="Tirar ${esc(a.nome)}">✕</button>`:''}</div>`).join('')}
+      <button class="add" style="margin-top:2px" data-acadadd>+ academia</button></div>
     <div class="rot">Regras</div>
     <div class="caixa"><div class="dupla">
       <div class="campo"><label>Limite de fadiga</label><input type="number" min="1" max="8" step="0.5" data-cfg="fadiga" value="${E.cfg.fadiga}"></div>
@@ -1050,26 +1088,22 @@ function ligar(){
   Q('[data-ordem]', b=>b.onclick=()=>{ emOrdem(E.treinos[+b.dataset.ordem]); toast('Em ordem'); re(); });
   Q('[data-rmex]', b=>b.onclick=()=>{ const [i,j]=ids(b.dataset.rmex); E.treinos[i].ex.splice(j,1); exAberto=null; re(); });
   Q('[data-addex]', b=>b.onclick=()=>{ pk={alvo:'add', nivel:'macro', c:null, r:null}; exAberto=null; re(); });
-  Q('[data-pkfecha]', b=>b.onclick=()=>{ pk=null; re(); });
-  Q('[data-pk]', b=>b.onclick=()=>{ pk.nivel=b.dataset.pk; re(); });
-  Q('[data-pkc]', b=>b.onclick=()=>{ const c=+b.dataset.pkc; if (c!==pk.c) pk.r=null; pk.c=c; pk.nivel='foco'; re(); });
-  Q('[data-pkr]', b=>b.onclick=()=>{
-    pk.r=b.dataset.pkr; pk.nivel='ex';
-    const e=pk.alvo!=='add' && E.treinos.flatMap(t=>t.ex).find(x=>x.id===pk.alvo);
-    if (e && !focoPorNome(e.nome)) e.reg=pk.r;   // nome digitado por você: o foco segue o que escolheu
-    re(); });
   const treinoAberto=()=>E.treinos.find(t=>t.id===aberto);
-  Q('[data-pkn]', b=>b.onclick=()=>{
-    const nome=b.dataset.pkn;
+  if (pk) ligarPick(re, nome=>{
     if (pk.alvo==='add'){ inserir(treinoAberto(), {id:uid(), nome, reg:pk.r, series:3, cargas:''}); pk=null; toast('Adicionado'); }
     else { const e=treinoAberto().ex.find(x=>x.id===pk.alvo); if (norm(e.nome)!==norm(nome)) e.cargas=''; e.nome=nome; e.reg=pk.r; }
-    re(); });
-  Q('[data-pkoutro]', b=>b.onclick=()=>{ const e={id:uid(), nome:'', reg:pk.r, series:3, cargas:''}; inserir(treinoAberto(), e); exAberto=e.id; pk={alvo:e.id, nivel:'ex', c:pk.c, r:pk.r}; re(); });
+    re(); }, ()=>{
+    const e=pk.alvo!=='add' && E.treinos.flatMap(t=>t.ex).find(x=>x.id===pk.alvo);
+    if (e && !focoPorNome(e.nome)) e.reg=pk.r;   // nome digitado por você: o foco segue o que escolheu
+  });
   Q('[data-rmt]', b=>b.onclick=()=>{ const i=+b.dataset.rmt; if(confirm(`Remover o treino ${E.treinos[i].letra}? O histórico continua.`)){ E.treinos.splice(i,1); aberto=null; re(); } });
   const nt=$('novoTreino'); if(nt) nt.onclick=()=>{ const l=String.fromCharCode(65+E.treinos.length), t={id:uid(), letra:l, nome:'Treino '+l, opcional:true, ex:[]}; E.treinos.push(t); aberto=t.id; re(); };
   Q('[data-aplicar]', b=>b.onclick=()=>{ const o=gerarRecomendado().ops[+b.dataset.aplicar]; if(o){ aplicar(o); toast('Aplicado'); re(); } });
   const at=$('aplicarTodas'); if(at) at.onclick=()=>{ if(confirm('Trocar o seu treino pelo recomendado?')){ E.treinos=gerarRecomendado().prop; toast('Treino atualizado'); re(); } };
   Q('[data-esctema]', b=>b.onclick=()=>{ E.cfg.tema=b.dataset.esctema; re(); });
+  Q('[data-acadnome]', el=>el.onchange=()=>{ const v=el.value.trim(); if (v) E.academias[+el.dataset.acadnome].nome=v; re(); });
+  Q('[data-acadrm]', b=>b.onclick=()=>{ const i=+b.dataset.acadrm, a=E.academias[i]; if (confirm(`Tirar ${a.nome}?`)){ E.academias.splice(i,1); if (E.cfg.academia===a.id) E.cfg.academia=E.academias[0].id; re(); } });
+  Q('[data-acadadd]', b=>b.onclick=()=>{ E.academias.push({id:uid(), nome:'Academia '+(E.academias.length+1)}); re(); const l=document.querySelectorAll('[data-acadnome]'), i=l[l.length-1]; if (i){ i.focus(); i.select(); } });
   Q('[data-cfg]', el=>el.onchange=()=>{ const v=parseFloat(el.value.replace(',','.')); if(v>0) E.cfg[el.dataset.cfg]=v; re(); });
   const ex=$('exportar'); if(ex) ex.onclick=()=>{ const u=URL.createObjectURL(new Blob([JSON.stringify(E,null,1)],{type:'application/json'})); const a=document.createElement('a'); a.href=u; a.download='treino-'+hojeStr()+'.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(u),2000); };
   const im=$('importar'), arq=$('arquivo'); if(im) im.onclick=()=>arq.click();
@@ -1077,87 +1111,152 @@ function ligar(){
 }
 
 /* ======================= treinando ======================= */
-/* Opções de troca de um bloco: lista do foco + exercícios seus com o mesmo foco. */
-function pool(e){
-  return [...new Map([e.nome].concat(catalogo(e.reg)).map(n=>[norm(n),n])).values()];
+/* O treino do dia é uma cópia da ficha (A.blocos). Trocar, tirar, acrescentar e reordenar valem
+   só pro dia, até tocar em "Salvar no treino". */
+function blocos(){
+  const A=E.atual; if (A.blocos) return A.blocos;
+  const lista=exs(treinoDe(A.treino)), esc0=A.esc||{};
+  const ordem=(A.ordem && A.ordem.length===lista.length) ? A.ordem : lista.map((_,k)=>k);
+  A.blocos=ordem.map(bi=>{ const e=lista[bi]; return { k:'b'+bi, de:e.id, nome:esc0[bi]||e.nome, reg:e.reg, series:series(e), cargas:e.cargas||'', orig:e.nome }; });
+  const sets={}; Object.keys(A.sets||{}).forEach(key=>{ sets[/^b/.test(key)?key:'b'+key]=A.sets[key]; }); A.sets=sets;   // treino começado antes desta versão
+  delete A.esc; delete A.ordem;
+  return A.blocos;
 }
-const escolhido = (bi, e) => E.atual.esc[bi] || e.nome;
-const chave = (bi, nome) => bi+'|'+norm(nome);
-function setsDe(bi, nome, e){
-  const k=chave(bi,nome);
-  if (!E.atual.sets[k]){
-    const g=sugestao(nome, norm(nome)===norm(e.nome)?cargasDe(e.cargas):[], series(e));
-    E.atual.sets[k]={ nome, rows:g.kgs.map((kg,i)=>({kg, reps:g.reps[i]==null?null:g.reps[i], ok:false})) };
+const chave = (b, nome) => b.k+'|'+norm(nome);
+const blocoDe = key => E.atual.blocos.find(b=>b.k===key.split('|')[0]);
+function setsDe(b){
+  const A=E.atual, k=chave(b,b.nome);
+  if (!A.sets[k]){
+    const g=sugestao(b.nome, b.orig && norm(b.nome)===norm(b.orig) ? cargasDe(b.cargas) : [], b.series||3, A.academia);
+    A.sets[k]={ nome:b.nome, reg:b.reg, rows:g.kgs.map((kg,i)=>({kg, reps:g.reps[i]==null?null:g.reps[i], ok:false})) };
   }
-  return E.atual.sets[k].rows;
+  return A.sets[k].rows;
 }
-const feitasBloco = bi => Object.keys(E.atual.sets).filter(k=>k.split('|')[0]==bi).reduce((a,k)=>a+E.atual.sets[k].rows.filter(r=>r.ok).length,0);
-function diretas(lista, sem){
-  const v={}; lista.forEach((e,bi)=>{ if (bi===sem) return; const m=musculoDe(e); v[m]=(v[m]||0)+feitasBloco(bi); }); return v;
+const okRows = s => s.rows.filter(r=>r.ok).length;
+const regSet = key => E.atual.sets[key].reg || (blocoDe(key)||{}).reg;
+const feitasBloco = b => Object.keys(E.atual.sets).filter(k=>k.split('|')[0]===b.k).reduce((a,k)=>a+okRows(E.atual.sets[k]),0);
+function diretas(semK){
+  const v={};
+  Object.keys(E.atual.sets).forEach(key=>{
+    if (key.split('|')[0]===semK || !blocoDe(key)) return;
+    const r=regSet(key); if (!REG[r]) return;
+    const m=REG[r].m; v[m]=(v[m]||0)+okRows(E.atual.sets[key]);
+  });
+  return v;
 }
-const limite = (t,m) => Math.max(+E.cfg.teto||10, planoDireto(t)[m]||0);
+const limiteDia = m => Math.max(+E.cfg.teto||10, blocos().filter(b=>REG[b.reg].m===m).reduce((a,b)=>a+(b.series||3),0));
+function difereDaFicha(){
+  const a=blocos(), f=exs(treinoDe(E.atual.treino));
+  return a.length!==f.length || a.some((b,i)=>norm(b.nome)!==norm(f[i].nome) || b.reg!==f[i].reg);
+}
+function salvarNaFicha(){
+  const A=E.atual, t=treinoDe(A.treino), validos=exs(t), resto=t.ex.filter(e=>!validos.includes(e));
+  t.ex=A.blocos.map(b=>{
+    const o=t.ex.find(x=>x.id===b.de), mesmo=o && norm(o.nome)===norm(b.nome);
+    const n={ id:o?o.id:uid(), nome:b.nome, reg:b.reg, series:o?o.series:setsDe(b).length, cargas:mesmo?o.cargas:'' };
+    Object.assign(b, { de:n.id, orig:n.nome, cargas:n.cargas });
+    return n;
+  }).concat(resto);
+}
+function trocarAcademia(id){
+  const A=E.atual; A.academia=id; E.cfg.academia=id;
+  Object.keys(A.sets).forEach(k=>{ if (!okRows(A.sets[k])) delete A.sets[k]; });   // o que não foi feito pega a carga dessa academia
+}
 
+let acadNova=false;
 function iniciar(letra){
   if (!treinoDe(letra)) return;
-  E.atual={ treino:letra, data:hojeStr(), esc:{}, sets:{}, trocando:null, intens:null };
+  const acad = academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
+  E.atual={ treino:letra, data:hojeStr(), academia:acad, sets:{}, trocando:null, intens:null };
+  pk=null; acadNova=false; blocos();
   salvar(); render(); scrollTo(0,0);
 }
 function telaTreinando(){
-  const A=E.atual, t=treinoDe(A.treino), lista=exs(t), dir=diretas(lista,-1);
-  const chips=principais(t).map(m=>{ const v=dir[m]||0; return `<span class="chip${v===0?' zero':v>=limite(t,m)?' cheio':''}">${MUSC[m].nome}<b>${v}</b></span>`; }).join('');
-  const ordem=(A.ordem && A.ordem.length===lista.length) ? A.ordem : lista.map((_,k)=>k);
-  const blocos=ordem.map((bi,pos)=>{ const e=lista[bi];
-    const nome=escolhido(bi,e), m=musculoDe(e), feito=feitasBloco(bi)>0, outrosM=diretas(lista,bi)[m]||0;
-    const cheio = !feito && outrosM >= limite(t,m);
-    const outros=new Set(lista.map((x,b2)=>b2===bi?null:norm(escolhido(b2,x))).filter(Boolean));
-    const ops=pool(e).filter(n=>norm(n)===norm(nome) || !outros.has(norm(n)));
-    const rows=setsDe(bi,nome,e), sg=sugestao(nome, [], rows.length), tudo=rows.every(r=>r.ok);
+  const A=E.atual, t=treinoDe(A.treino), bl=blocos(), dir=diretas(null);
+  if (!A.academia || !academia(A.academia)) A.academia=academia(E.cfg.academia) ? E.cfg.academia : (E.academias[0]||{}).id;
+  const ms=[...new Set(bl.map(b=>REG[b.reg].m))];
+  const chips=ms.map(m=>{ const v=dir[m]||0; return `<span class="chip${v===0?' zero':v>=limiteDia(m)?' cheio':''}">${MUSC[m].nome}<b>${v}</b></span>`; }).join('');
+  const acad=`<div class="ops acad">${E.academias.map(a=>`<button class="op${a.id===A.academia?' on':''}" data-acad="${esc(a.id)}">${esc(a.nome)}</button>`).join('')}${acadNova
+    ?'<span class="acad-nova"><input id="acadNome" placeholder="Nome da academia" enterkeyhint="done"><button data-acadok>OK</button></span>'
+    :'<button class="op outro" data-acadnova aria-label="Nova academia">+</button>'}</div>`;
+  const html=bl.map((b,pos)=>{
+    const m=REG[b.reg].m, feito=feitasBloco(b)>0, outrosM=diretas(b.k)[m]||0, cheio=!feito && outrosM>=limiteDia(m);
+    const outros=new Set(bl.filter(x=>x!==b).map(x=>norm(x.nome)));
+    const ops=[...new Map([b.nome].concat(catalogo(b.reg)).map(n=>[norm(n),n])).values()].filter(n=>norm(n)===norm(b.nome) || !outros.has(norm(n)));
+    const rows=setsDe(b), sg=sugestao(b.nome, [], rows.length, A.academia), tudo=rows.every(r=>r.ok);
+    const pickAqui=pk && pk.alvo===b.k, aberto=pickAqui || A.trocando===b.k;
     const dica=[sg.texto?esc(sg.texto):'', sg.sobe?'<span class="sobe">↑ sobe a carga</span>':'', cheio?`${MUSC[m].nome} já fechou ${outrosM} séries hoje, pode pular`:''].filter(Boolean);
     return `<div class="ex${tudo?' ok':''}${cheio?' pula':''}">
-      <div class="ex-cab">${ALCA}<span class="n">${pos+1}</span><span class="nm"><b>${esc(nome)}</b><small>${REG[e.reg].nome}</small></span>
-        ${!cheio && ops.length>1?`<button class="troca${A.trocando===bi?' on':''}" data-trocar="${bi}">${A.trocando===bi?'Fechar':'Trocar'}</button>`:''}</div>
-      ${A.trocando===bi?`<div class="lista">${ops.map(n=>`<button class="op${norm(n)===norm(nome)?' on':''}" data-op="${bi}" data-nome="${esc(n)}">${esc(n)}</button>`).join('')}</div>`:''}
+      <div class="ex-cab">${ALCA}<span class="n">${pos+1}</span><span class="nm"><b>${esc(b.nome)}</b><small>${REG[b.reg].nome}</small></span>
+        <button class="troca${aberto?' on':''}" data-trocar="${b.k}">${aberto?'Fechar':'Trocar'}</button></div>
+      ${pickAqui?`<div class="pk-bloco">${caixaPick(bl, b, false)}</div>`
+        :A.trocando===b.k?`<div class="lista">${ops.map(n=>`<button class="op${norm(n)===norm(b.nome)?' on':''}" data-op="${b.k}" data-nome="${esc(n)}">${esc(n)}</button>`).join('')}
+          <button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
       ${dica.length?`<div class="dica">${dica.join(' · ')}</div>`:''}
       <div class="series">${rows.map((r,si)=>`<div class="serie"><span>${si+1}</span>
-        <div class="un"><input inputmode="decimal" data-kg="${bi}:${si}" value="${r.kg==null?'':fmtNum(r.kg)}" placeholder="carga" aria-label="carga série ${si+1}"><small>kg</small></div>
-        <div class="un"><input inputmode="numeric" data-reps="${bi}:${si}" value="${r.reps==null?'':r.reps}" placeholder="${REP_MIN}–${REP_MAX}" aria-label="repetições série ${si+1}"><small>rep</small></div></div>`).join('')}</div>
-      <div class="acoes"><button class="mais" data-mais="${bi}">+ série</button>${rows.length>1?`<button class="mais" data-menos="${bi}">− série</button>`:''}
-        <button class="ck${tudo?' on':''}" data-ok="${bi}">${tudo?'✓ Feito':'Feito'}</button></div></div>`;
+        <div class="un"><input inputmode="decimal" data-kg="${b.k}:${si}" value="${r.kg==null?'':fmtNum(r.kg)}" placeholder="carga" aria-label="carga série ${si+1}"><small>kg</small></div>
+        <div class="un"><input inputmode="numeric" data-reps="${b.k}:${si}" value="${r.reps==null?'':r.reps}" placeholder="${REP_MIN}–${REP_MAX}" aria-label="repetições série ${si+1}"><small>rep</small></div></div>`).join('')}</div>
+      <div class="acoes"><button class="mais" data-mais="${b.k}">+ série</button>${rows.length>1?`<button class="mais" data-menos="${b.k}">− série</button>`:''}
+        <button class="ck${tudo?' on':''}" data-ok="${b.k}">${tudo?'✓ Feito':'Feito'}</button></div></div>`;
   }).join('');
   return `<div class="topo"><h1>Treinando</h1><button class="link" id="cancelar">Cancelar</button></div>
     <div class="s-cab"><span class="L">${esc(t.letra)}</span><h2>${esc(t.nome)}</h2><input type="date" id="data" value="${A.data}" max="${hojeStr()}" aria-label="data do treino"></div>
-    <div class="chips">${chips}${passou(t)?`<span class="chip cheio-ex">${lista.length} exercícios</span>`:''}</div>
-    <div id="blocos">${blocos}</div>${blocos?'':'<div class="caixa" style="margin-top:12px"><p class="vazio">Esse treino não tem exercícios. Dá pra registrar mesmo assim.</p></div>'}
+    ${acad}
+    <div class="chips">${chips}${bl.length>(+E.cfg.maxEx||8)?`<span class="chip cheio-ex">${bl.length} exercícios</span>`:''}</div>
+    <div id="blocos">${html}</div>${html?'':'<div class="caixa" style="margin-top:12px"><p class="vazio">Nenhum exercício. Dá pra registrar mesmo assim.</p></div>'}
+    ${pk&&pk.alvo==='add'?caixaPick(bl, null, true):'<div class="ed-ac"><button class="add" data-addex>+ exercício</button></div>'}
+    ${difereDaFicha()?`<button class="btn sec" id="salvarFicha">Salvar no treino ${esc(t.letra)}</button>`:''}
     <div class="rot">Intensidade</div>
     <div class="intens">${Object.keys(INT).map(k=>`<button data-int="${k}" class="${A.intens===k?'on':''}"><b>${INT[k].nome}</b><small>${INT[k].sub}</small></button>`).join('')}</div>
     <button class="btn" id="finalizar" ${A.intens?'':'disabled'}>${A.intens?'Finalizar treino':'Escolha a intensidade'}</button>`;
 }
 function ligarTreinando(){
-  const A=E.atual, t=treinoDe(A.treino), lista=exs(t), Q=(s,f)=>document.querySelectorAll(s).forEach(f);
-  const re=()=>{ const y=scrollY; salvar(); render(); scrollTo(0,y); }, ids=s=>s.split(':').map(Number);
-  const linhas = bi => setsDe(bi, escolhido(bi,lista[bi]), lista[bi]);
-  $('cancelar').onclick=()=>{ if(!Object.values(A.sets).some(x=>x.rows.some(r=>r.ok)) || confirm('Descartar esse treino?')){ E.atual=null; salvar(); render(); } };
+  const A=E.atual, t=treinoDe(A.treino), bl=blocos(), Q=(s,f)=>document.querySelectorAll(s).forEach(f);
+  const re=()=>{ const y=scrollY; salvar(); render(); scrollTo(0,y); };
+  const par = s => { const i=s.lastIndexOf(':'); return [bl.find(b=>b.k===s.slice(0,i)), +s.slice(i+1)]; };
+  const bk = k => bl.find(b=>b.k===k);
+  const linhas = k => setsDe(bk(k));
+  $('cancelar').onclick=()=>{ if(!Object.values(A.sets).some(x=>x.rows.some(r=>r.ok)) || confirm('Descartar esse treino?')){ E.atual=null; pk=null; salvar(); render(); } };
   $('data').onchange=e=>{ if(e.target.value){ A.data=e.target.value; salvar(); } };
-  Q('[data-trocar]', b=>b.onclick=()=>{ const bi=+b.dataset.trocar; A.trocando = A.trocando===bi?null:bi; re(); });
-  Q('[data-op]', b=>b.onclick=()=>{ A.esc[+b.dataset.op]=b.dataset.nome; A.trocando=null; re(); });
-  Q('[data-kg]', el=>el.oninput=()=>{ const [bi,si]=ids(el.dataset.kg), v=parseFloat(el.value.replace(',','.')); linhas(bi)[si].kg=isNaN(v)?null:v; salvar(); });
-  Q('[data-reps]', el=>el.oninput=()=>{ const [bi,si]=ids(el.dataset.reps), v=parseInt(el.value,10); linhas(bi)[si].reps=isNaN(v)?null:v; salvar(); });
-  Q('[data-mais]', b=>b.onclick=()=>{ const r=linhas(+b.dataset.mais), u=r[r.length-1]||{}; r.push({kg:u.kg??null, reps:u.reps??null, ok:false}); re(); });
-  Q('[data-menos]', b=>b.onclick=()=>{ const r=linhas(+b.dataset.menos); if(r.length>1) r.pop(); re(); });
-  Q('[data-ok]', b=>b.onclick=()=>{ const r=linhas(+b.dataset.ok), tudo=r.every(x=>x.ok); r.forEach(x=>x.ok=!tudo); re(); });
+  // academia
+  Q('[data-acad]', b=>b.onclick=()=>{ if (b.dataset.acad!==A.academia){ trocarAcademia(b.dataset.acad); re(); } });
+  Q('[data-acadnova]', b=>b.onclick=()=>{ acadNova=true; re(); const i=$('acadNome'); if(i) i.focus(); });
+  const novaAcad=()=>{ const nome=$('acadNome').value.trim(); acadNova=false; if (nome){ const a={id:uid(), nome}; E.academias.push(a); trocarAcademia(a.id); } re(); };
+  Q('[data-acadok]', b=>b.onclick=novaAcad);
+  const an=$('acadNome'); if (an) an.onkeydown=ev=>{ if (ev.key==='Enter') novaAcad(); };
+  // trocar / tirar / acrescentar
+  Q('[data-trocar]', b=>b.onclick=()=>{ const k=b.dataset.trocar, ab=A.trocando===k || (pk&&pk.alvo===k); pk=null; A.trocando=ab?null:k; re(); });
+  Q('[data-op]', b=>b.onclick=()=>{ bk(b.dataset.op).nome=b.dataset.nome; A.trocando=null; re(); });
+  Q('[data-outroex]', b=>b.onclick=()=>{ const x=bk(b.dataset.outroex); A.trocando=null; pk={alvo:x.k, nivel:'macro', c:catDe(x.reg), r:x.reg}; re(); });
+  Q('[data-tirar]', b=>b.onclick=()=>{
+    const x=bk(b.dataset.tirar); if (feitasBloco(x) && !confirm(`Tirar ${x.nome}? As séries feitas dele saem do treino.`)) return;
+    A.blocos=A.blocos.filter(y=>y!==x); Object.keys(A.sets).forEach(k=>{ if (k.split('|')[0]===x.k) delete A.sets[k]; }); A.trocando=null; re(); });
+  Q('[data-addex]', b=>b.onclick=()=>{ A.trocando=null; pk={alvo:'add', nivel:'macro', c:null, r:null}; re(); });
+  if (pk) ligarPick(re, nome=>{
+    if (pk.alvo==='add'){ A.blocos.push({ k:'n'+uid(), de:null, nome, reg:pk.r, series:3, cargas:'', orig:null }); toast('Adicionado'); }
+    else { const x=bk(pk.alvo); if (x){ x.nome=nome; x.reg=pk.r; } }
+    pk=null; re(); });
+  const sf=$('salvarFicha'); if (sf) sf.onclick=()=>{ salvarNaFicha(); toast(`Treino ${t.letra} atualizado`); re(); };
+  // séries
+  Q('[data-kg]', el=>el.oninput=()=>{ const [b,si]=par(el.dataset.kg), v=parseFloat(el.value.replace(',','.')); setsDe(b)[si].kg=isNaN(v)?null:v; salvar(); });
+  Q('[data-reps]', el=>el.oninput=()=>{ const [b,si]=par(el.dataset.reps), v=parseInt(el.value,10); setsDe(b)[si].reps=isNaN(v)?null:v; salvar(); });
+  Q('[data-mais]', b=>b.onclick=()=>{ const r=linhas(b.dataset.mais), u=r[r.length-1]||{}; r.push({kg:u.kg??null, reps:u.reps??null, ok:false}); re(); });
+  Q('[data-menos]', b=>b.onclick=()=>{ const r=linhas(b.dataset.menos); if(r.length>1) r.pop(); re(); });
+  Q('[data-ok]', b=>b.onclick=()=>{ const r=linhas(b.dataset.ok), tudo=r.every(x=>x.ok); r.forEach(x=>x.ok=!tudo); re(); });
   Q('[data-int]', b=>b.onclick=()=>{ A.intens=b.dataset.int; re(); });
-  const bl=$('blocos'); if (bl) arrastavel([...bl.children], (de,para)=>{ const o=(A.ordem && A.ordem.length===lista.length) ? A.ordem : lista.map((_,k)=>k); moverItem(o,de,para); A.ordem=o; A.trocando=null; re(); });
+  const bls=$('blocos'); if (bls) arrastavel([...bls.children], (de,para)=>{ moverItem(A.blocos,de,para); A.trocando=null; pk=null; re(); });
   $('finalizar').onclick=()=>{
     if(!A.intens) return;
     const itens=[];
-    Object.keys(A.sets).forEach(k=>{
-      const e=lista[+k.split('|')[0]], s=A.sets[k]; if(!e) return;
-      const ok=s.rows.filter(r=>r.ok).map(r=>({kg:r.kg, reps:r.reps})), m=musculoDe(e);
-      if (ok.length) itens.push({ ex:s.nome, reg:e.reg, m, s:secundarios(s.nome,m), series:ok });
-    });
+    A.blocos.forEach(b=>Object.keys(A.sets).filter(k=>k.split('|')[0]===b.k).forEach(k=>{
+      const s=A.sets[k], r=regSet(k); if (!REG[r]) return;
+      const ok=s.rows.filter(x=>x.ok).map(x=>({kg:x.kg, reps:x.reps})), m=REG[r].m;
+      if (ok.length) itens.push({ ex:s.nome, reg:r, m, s:secundarios(s.nome,m), series:ok });
+    }));
     if(!itens.length && !confirm(`Nenhum exercício marcado como feito. Registrar o ${A.treino} mesmo assim?`)) return;
-    E.sessoes.push({ id:Date.now(), ts:A.data===hojeStr()?Date.now():tsDe(A.data,18), data:A.data, treino:A.treino, intens:A.intens, itens });
-    E.atual=null; aba='hoje'; salvar(); render(); scrollTo(0,0); toast(`Treino ${t.letra} registrado`);
+    E.sessoes.push({ id:Date.now(), ts:A.data===hojeStr()?Date.now():tsDe(A.data,18), data:A.data, treino:A.treino, academia:A.academia||null, intens:A.intens, itens });
+    if (A.academia) E.cfg.academia=A.academia;
+    E.atual=null; pk=null; aba='hoje'; salvar(); render(); scrollTo(0,0); toast(`Treino ${t.letra} registrado`);
   };
 }
 
