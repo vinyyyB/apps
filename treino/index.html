@@ -94,12 +94,12 @@
   .q.desc{font-size:11px;font-weight:500}
   .q.opc{opacity:.55}
   .legenda{font-size:12px;color:var(--dim);margin:10px 0 0}
-  .rec{display:grid;grid-template-columns:1fr 84px 70px;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
+  .rec{display:grid;grid-template-columns:1fr 72px 80px;gap:12px;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:14px}
   .rec:first-child{border-top:0;padding-top:0}
   .rec small{display:block;font-size:12px;color:var(--dim)}
   .barra{height:6px;border-radius:3px;background:var(--s2);overflow:hidden}
   .barra i{display:block;height:100%;border-radius:3px}
-  .rec .h{text-align:right;font-size:12.5px;color:var(--mut)}
+  .rec .h{text-align:right;font-size:12.5px;color:var(--mut);white-space:nowrap}
   .contas{display:grid;grid-template-columns:repeat(auto-fit,minmax(54px,1fr));gap:8px}
   .ct{background:var(--s1);border:1px solid var(--line);border-radius:12px;padding:10px 0;text-align:center}
   .ct.opc{border-style:dashed}
@@ -714,6 +714,9 @@ const CATS = [['Peito',['peito']],['Costas',['costas','dorsal','trapezio','lomba
 const GRUPO = { peito:'empurrar', triceps:'empurrar', delt_ant:'empurrar', delt_lat:'empurrar',
   costas:'puxar', dorsal:'puxar', biceps:'puxar', braquial:'puxar', delt_post:'puxar', trapezio:'puxar', antebraco:'puxar',
   quadriceps:'pernas', posterior:'pernas', gluteo:'pernas', adutor:'pernas', panturrilha:'pernas', lombar:'pernas', abdomen:'pernas' };
+/* Séries por semana recomendadas por músculo (meio da faixa 10–20 pros grandes; menos pros que já trabalham de carona). */
+const REC_SEM = { peito:15, dorsal:15, costas:15, delt_lat:15, delt_post:15, biceps:15, triceps:15, quadriceps:15, posterior:15, gluteo:15,
+  delt_ant:8, trapezio:8, braquial:8, adutor:8, panturrilha:10, abdomen:10, antebraco:6, lombar:6 };
 const GRANDES = ['peito','costas','dorsal','delt_lat','delt_post','biceps','triceps','quadriceps','posterior','gluteo'];
 const SUPERIORES = ['peito','costas','dorsal','delt_ant','delt_lat','delt_post','biceps','triceps','braquial'];
 const copia = o => JSON.parse(JSON.stringify(o));
@@ -905,7 +908,7 @@ function telaHoje(){
   E.sessoes.filter(s=>s.data>=segunda(h)).forEach(s=>{ const v=volumeSessao(s); for(const m in v) volSem[m]=(volSem[m]||0)+v[m]; });
   const nao=Object.keys(rec).filter(m=>rec[m].pct<PRONTO).sort((a,b)=>rec[a].pct-rec[b].pct), prontos=Object.keys(rec).filter(m=>rec[m].pct>=PRONTO);
   const recHtml=(nao.length?nao.map(m=>{ const r=rec[m], cor=r.pct>=.5?'var(--amb)':'var(--low)';
-    return `<div class="rec"><span>${MUSC[m].nome}<small>${fmtNum(volSem[m]||0)} séries na semana</small></span><div class="barra"><i style="width:${Math.round(r.pct*100)}%;background:${cor}"></i></div><span class="h">${fmtQuando(r.libera)}</span></div>`; }).join('')
+    return `<div class="rec"><span>${MUSC[m].nome}<small>${fmtNum(volSem[m]||0)} séries na semana</small><small>Recomendado: ${REC_SEM[m]}</small></span><div class="barra"><i style="width:${Math.round(r.pct*100)}%;background:${cor}"></i></div><span class="h">${fmtQuando(r.libera)}</span></div>`; }).join('')
     :'<p class="vazio">Tudo recuperado.</p>');
   const lim=somaDias(h,-30);
   return `${topo}
@@ -1034,7 +1037,7 @@ function telaAjustes(){
       <p><b>Treino do dia.</b> Domingo é folga. Primeiro os treinos base que ainda não saíram na semana, do parado há mais tempo, se os músculos estiverem recuperados. Feita a base, o treino que mais cobre o volume que falta nos últimos 7 dias. Se nada faz falta, descanso.</p>
       <p><b>Recuperação.</b> Tempo-base por músculo depois de um treino moderado de ~6 séries, na faixa de 48–72h que o ACSM recomenda pro mesmo grupo (menos pros pequenos). Multiplica pela intensidade (×0,75 a ×1,2) e pelo volume (+5% por série acima de 6, até +30%). Músculo secundário conta meia série. Pronto com 90%.</p>
       <table class="tab-h">${tab}</table>
-      <p><b>Volume.</b> Referência de 10–20 séries por músculo por semana e ~10 por treino (estudos de dose-resposta de Schoenfeld e colegas), com cada músculo 2x por semana.</p>
+      <p><b>Volume.</b> Referência de 10–20 séries por músculo por semana e ~10 por treino (estudos de dose-resposta de Schoenfeld e colegas), com cada músculo 2x por semana. O recomendado da recuperação é o meio da faixa: 15 séries pros músculos grandes; 6 a 10 pros que já trabalham nos multiarticulares (ombro anterior, braquial, antebraço, lombar etc.).</p>
       <p style="margin:0"><b>Carga.</b> Faixa de ${REP_MIN} a ${REP_MAX} repetições: bateu ${REP_MAX} em todas as séries, sobe 2,5 kg (até 30 kg) ou 5 kg.</p></div>
     <div class="rot">Dados</div>
     <div class="caixa"><p class="nota" style="margin-top:0">${sync&&sync.ativo()?'Sincronizando com os outros aparelhos.':'Sincronia desligada: os dados ficam só neste aparelho. Configure na tela <a class="lk" href="../">Meus apps</a>.'}</p>
