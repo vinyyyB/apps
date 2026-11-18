@@ -208,7 +208,6 @@
   .acad-nova{display:flex;gap:8px;align-items:center}
   .acad-nova input{width:160px;padding:6px 11px;font-size:13px;border-radius:99px}
   .acad-nova button{color:var(--acc);font-size:13px;font-weight:600}
-  .quebra{flex-basis:100%;height:0}
   .op.tira{color:var(--low);border-style:dashed}
   .pk-bloco{margin:10px 0 0 26px}
   .pk-bloco .caixa-add{margin-top:0}
@@ -526,16 +525,10 @@ function catPor(nome, r){
   if (!REG[r].ex.some(e=>norm(e)===n)) (c.extra[r]=c.extra[r]||[]).push(nome);
 }
 function catGarante(nome, r){ if (!catalogo(r).some(n=>norm(n)===norm(nome))) catPor(nome, r); }
-/* Costas: remada (puxa na horizontal) ou puxada (puxa de cima). Pullover não é nenhum dos dois. */
-function padrao(nome, reg){
-  const n=norm(nome);
-  if (/pullover/.test(n)) return null;
-  if (/remada|serrote|polia baixa com triangulo/.test(n)) return 'remada';
-  if (/puxada|barra fixa|pull ?down|graviton/.test(n)) return 'puxada';
-  if (reg==='costas_meio' || reg==='costas_sup') return 'remada';
-  if (reg==='dorsal_larg' || reg==='dorsal_inf') return 'puxada';
-  return null;
-}
+/* Costas por inteiro: um exercício em cada parte (2 remadas: dorsal médio e superior; 2 puxadas: largura e
+   inferior). Nenhuma parte das costas pode ter dois exercícios no mesmo treino. */
+const FOCOS_COSTAS = ['costas_meio','costas_sup','dorsal_larg','dorsal_inf'];
+const focoOcupado = (itens, r, sem) => FOCOS_COSTAS.includes(r) && itens.some(x=>x!==sem && x.nome && x.reg===r);
 /* O mesmo exercício (ou um sinônimo dele) já está na lista? */
 const mesmoEx = (a, b) => norm((typeof canon==='function'&&canon(a))||a)===norm((typeof canon==='function'&&canon(b))||b);
 const jaTem = (lista, nome, sem) => lista.some(x=>x!==sem && x.nome && mesmoEx(x.nome, nome));
@@ -826,27 +819,25 @@ const REC_SEM = Object.fromEntries(Object.entries(FAIXA).map(([m,[a,b]])=>[m, Ma
 const GRANDES = ['peito','costas','dorsal','delt_lat','delt_post','biceps','triceps','quadriceps','posterior','gluteo'];
 const SUPERIORES = ['peito','costas','dorsal','delt_ant','delt_lat','delt_post','biceps','triceps','braquial'];
 const copia = o => JSON.parse(JSON.stringify(o));
-/* ---------- regra de costas: 2 remadas e 2 puxadas ----------
+/* ---------- regra de costas: um exercício em cada parte ----------
    O treino de costas é o treino base com mais séries de costas. regraCostas devolve o que trocar,
    acrescentar ou tirar numa lista; livre(item) diz se o item pode mexer (no dia: sem série feita). */
-const FOCO_PADRAO = { remada:['costas_meio','costas_sup'], puxada:['dorsal_larg','dorsal_inf'] };
 function treinoCostas(lista){
   const c=(lista||E.treinos.filter(t=>!t.opcional)).map(t=>({t, v:(planoDireto(t).costas||0)+(planoDireto(t).dorsal||0)})).sort((a,b)=>b.v-a.v)[0];
   return c && c.v>0 ? c.t : null;
 }
 function regraCostas(lista, livre, evitar){
-  const atual=lista.slice(), acoes=[], tipo=e=>padrao(e.nome,e.reg), doTipo=t=>atual.filter(e=>tipo(e)===t);
-  const novo = t => {
-    const tem=new Set(atual.map(e=>e.reg)), ord=FOCO_PADRAO[t].slice().sort((a,b)=>tem.has(a)-tem.has(b)), ok=(n,r)=>padrao(n,r)===t && !jaTem(atual,n);
-    for (const r of ord){ const n=catalogo(r).find(n=>ok(n,r) && !(evitar||[]).some(o=>mesmoEx(o,n))) || catalogo(r).find(n=>ok(n,r)); if (n) return {nome:n, reg:r}; }
-    return null;
-  };
-  const sobra = l => { const c={}; l.forEach(e=>c[e.reg]=(c[e.reg]||0)+1); return l.filter(livre).reverse().sort((a,b)=>c[b.reg]-c[a.reg])[0]; };
-  for (const [f,sb] of [['puxada','remada'],['remada','puxada']]){
-    while (doTipo(f).length<2 && doTipo(sb).length>2){ const sai=sobra(doTipo(sb)), n=sai&&novo(f); if (!n) break; const e={...n, series:series(sai)}; atual[atual.indexOf(sai)]=e; acoes.push({tipo:'trocar', sai, entra:e}); }
-    while (doTipo(f).length<2){ const n=novo(f); if (!n) break; const e={...n, series:3}; atual.push(e); acoes.push({tipo:'adicionar', entra:e}); }
-  }
-  for (const t of ['remada','puxada']) while (doTipo(t).length>2){ const sai=sobra(doTipo(t)); if (!sai) break; atual.splice(atual.indexOf(sai),1); acoes.push({tipo:'remover', sai}); }
+  const atual=lista.slice(), acoes=[], de=r=>atual.filter(e=>e.reg===r);
+  const novo = r => { const ok=n=>!jaTem(atual,n); const n=catalogo(r).find(n=>ok(n) && !(evitar||[]).some(o=>mesmoEx(o,n))) || catalogo(r).find(ok); return n ? {nome:n, reg:r} : null; };
+  const sobra = () => { for (const r of FOCOS_COSTAS){ const l=de(r), lv=l.filter(livre); if (l.length>1 && lv.length) return lv[lv.length-1]; } return null; };
+  FOCOS_COSTAS.forEach(r=>{
+    if (de(r).length) return;
+    const n=novo(r); if (!n) return;
+    const sai=sobra(), e={...n, series:sai?series(sai):3};
+    if (sai){ atual[atual.indexOf(sai)]=e; acoes.push({tipo:'trocar', sai, entra:e}); }
+    else { atual.push(e); acoes.push({tipo:'adicionar', entra:e}); }
+  });
+  let x; while ((x=sobra())){ atual.splice(atual.indexOf(x),1); acoes.push({tipo:'remover', sai:x}); }
   return acoes;
 }
 function nomeAuto(t, orig){
@@ -885,7 +876,7 @@ function gerarRecomendado(){
   const maxEx=+E.cfg.maxEx||8, cabe=t=>exs(t).length<maxEx;
   // 1b. treino de costas: 2 remadas e 2 puxadas
   const tc=treinoCostas(base());
-  if (tc){ const t=prop.find(x=>x.id===tc.id), POR='costas: 2 remadas e 2 puxadas';
+  if (tc){ const t=prop.find(x=>x.id===tc.id), POR='costas por inteiro: um exercício em cada parte';
     regraCostas(exs(t), ()=>true, prop.filter(x=>x!==t).flatMap(x=>x.ex).map(e=>e.nome)).forEach(a=>{
       if (a.tipo==='trocar'){ const n={id:uid(), nome:a.entra.nome, reg:a.entra.reg, series:a.entra.series, cargas:''}; t.ex[t.ex.indexOf(a.sai)]=n; ops.push({tipo:'trocar', de:t.letra, nome:a.sai.nome, ex:n, porque:POR}); }
       if (a.tipo==='adicionar'){ const n={id:uid(), nome:a.entra.nome, reg:a.entra.reg, series:3, cargas:''}; inserir(t, n); ops.push({tipo:'adicionar', nome:n.nome, para:t.letra, ex:n, porque:POR}); }
@@ -1083,7 +1074,7 @@ function caixaPick(itens, e, fechar){
     corpo=CATS.map(([n],k)=>`<button class="op${k===p.c?' on':''}" data-pkc="${k}">${n}</button>`).join('');
   } else if (p.nivel==='foco'){
     trilha=`<button data-pk="macro">${CATS[p.c][0]}</button><span>›</span><b>Músculo</b>`;
-    corpo=Object.keys(REG).filter(r=>CATS[p.c][1].includes(REG[r].m)).map(r=>`<button class="op${r===p.r?' on':''}" data-pkr="${r}">${REG[r].nome}</button>`).join('');
+    corpo=Object.keys(REG).filter(r=>CATS[p.c][1].includes(REG[r].m) && !focoOcupado(itens, r, e)).map(r=>`<button class="op${r===p.r?' on':''}" data-pkr="${r}">${REG[r].nome}</button>`).join('');
   } else {
     trilha=`<button data-pk="macro">${CATS[p.c][0]}</button><span>›</span><button data-pk="foco">${REG[p.r].nome}</button>`;
     const nomes=similares(p.r).filter(n=>!tem.has(norm(n)));
@@ -1235,7 +1226,8 @@ function ligar(){
   Q('[data-e]', el=>{
     const [i,j,campo]=el.dataset.e.split(':'), e=E.treinos[+i].ex[+j];
     el.oninput=()=>{ e[campo]= campo==='series' ? (parseInt(el.value,10)||null) : el.value; salvar(); };
-    el.onchange=()=>{ if (campo==='nome'){ e.nome=canon(e.nome)||e.nome.trim(); if (jaTem(E.treinos[+i].ex, e.nome, e)){ toast('Já está no treino'); e.nome=el.defaultValue; } const f=focoPorNome(e.nome); if (f){ e.reg=f; if (pk&&pk.alvo===e.id) Object.assign(pk,{nivel:'ex', c:catDe(f), r:f}); } } re(); };
+    el.onchange=()=>{ if (campo==='nome'){ e.nome=canon(e.nome)||e.nome.trim(); if (jaTem(E.treinos[+i].ex, e.nome, e)){ toast('Já está no treino'); e.nome=el.defaultValue; }
+      else { const f0=focoPorNome(e.nome); if (f0 && f0!==e.reg && focoOcupado(E.treinos[+i].ex, f0, e)){ toast(REG[f0].nome+' já tem exercício'); e.nome=el.defaultValue; } } const f=focoPorNome(e.nome); if (f){ e.reg=f; if (pk&&pk.alvo===e.id) Object.assign(pk,{nivel:'ex', c:catDe(f), r:f}); } } re(); };
   });
   Q('[data-lista]', el=>{ const t=E.treinos[+el.dataset.lista]; arrastavel([...el.children], (de,para)=>{ moverItem(t.ex,de,para); re(); }); });
   Q('[data-ordem]', b=>b.onclick=()=>{ emOrdem(E.treinos[+b.dataset.ordem]); toast('Em ordem'); re(); });
@@ -1243,7 +1235,9 @@ function ligar(){
   Q('[data-addex]', b=>b.onclick=()=>{ pk={alvo:'add', nivel:'macro', c:null, r:null}; exAberto=null; re(); });
   const treinoAberto=()=>E.treinos.find(t=>t.id===aberto);
   if (pk) ligarPick(re, nome=>{
-    if (jaTem(treinoAberto().ex, nome, pk.alvo==='add'?null:treinoAberto().ex.find(x=>x.id===pk.alvo))){ toast('Já está no treino'); re(); return; }
+    const sem=pk.alvo==='add'?null:treinoAberto().ex.find(x=>x.id===pk.alvo);
+    if (jaTem(treinoAberto().ex, nome, sem)){ toast('Já está no treino'); re(); return; }
+    if (focoOcupado(treinoAberto().ex, pk.r, sem)){ toast(REG[pk.r].nome+' já tem exercício'); re(); return; }
     if (pk.alvo==='add'){ inserir(treinoAberto(), {id:uid(), nome, reg:pk.r, series:3, cargas:''}); pk=null; toast('Adicionado'); }
     else { const e=treinoAberto().ex.find(x=>x.id===pk.alvo); if (norm(e.nome)!==norm(nome)) e.cargas=''; e.nome=nome; e.reg=pk.r; }
     re(); }, ()=>{
@@ -1318,7 +1312,7 @@ function trocarAcademia(id){
 }
 
 function costasNoDia(){
-  const A=E.atual; if (A.costas) return; A.costas=true;
+  const A=E.atual; if (A.costas===2) return; A.costas=2;
   const t=treinoCostas(); if (A.extra || !t || t.letra!==A.treino) return;
   regraCostas(A.blocos, b=>!feitasBloco(b), []).forEach(a=>{
     const tira = b => Object.keys(A.sets).forEach(k=>{ if (k.split('|')[0]===b.k) delete A.sets[k]; });
@@ -1355,8 +1349,6 @@ function telaTreinando(){
     const outros=new Set(bl.filter(x=>x!==b).map(x=>norm(x.nome)));
     const livres = l => [...new Map(l.map(n=>[norm(n),n])).values()].filter(n=>norm(n)===norm(b.nome) || !outros.has(norm(n)));
     const ops=livres([b.nome].concat(catalogo(b.reg)));
-    const pb=padrao(b.nome,b.reg), mais = pb ? [...new Map(['remada','puxada'].flatMap(t=>FOCO_PADRAO[t]).filter(r=>r!==b.reg).flatMap(r=>catalogo(r).filter(n=>padrao(n,r)).map(n=>[norm(n),[n,r]]))).values()]
-      .filter(([n])=>norm(n)!==norm(b.nome) && !outros.has(norm(n)) && !ops.some(o=>norm(o)===norm(n))) : [];
     const rows=setsDe(b), sg=sugestao(b.nome, [], rows.length, A.academia), tudo=rows.every(r=>r.ok);
     const pickAqui=pk && pk.alvo===b.k, aberto=pickAqui || A.trocando===b.k;
     const dica=[sg.texto?esc(sg.texto):'', sg.sobe?'<span class="sobe">↑ sobe a carga</span>':'', cheio?`${MUSC[m].nome} já fechou ${outrosM} séries hoje, pode pular`:''].filter(Boolean);
@@ -1365,8 +1357,8 @@ function telaTreinando(){
         <button class="troca${aberto?' on':''}" data-trocar="${b.k}">${aberto?'Fechar':'Trocar'}</button></div>
       ${pickAqui?`<div class="pk-bloco">${caixaPick(bl, b, false)}</div>`
         :A.trocando===b.k?`<div class="lista">${ops.map(n=>`<button class="op${norm(n)===norm(b.nome)?' on':''}" data-op="${b.k}" data-nome="${esc(n)}">${esc(n)}</button>`).join('')}
-          ${mais.length?`<span class="quebra"></span>${mais.map(([n,r])=>`<button class="op" data-op="${b.k}" data-nome="${esc(n)}" data-reg="${r}">${esc(n)}</button>`).join('')}`:''}
-          <span class="quebra"></span><button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
+
+          <button class="op outro" data-outroex="${b.k}">Outro exercício</button><button class="op tira" data-tirar="${b.k}">Tirar</button></div>`:''}
       ${dica.length?`<div class="dica">${dica.join(' · ')}</div>`:''}
       <div class="series">${rows.map((r,si)=>`<div class="serie"><span>${si+1}</span>
         <div class="un"><input inputmode="decimal" data-kg="${b.k}:${si}" value="${r.kg==null?'':fmtNum(r.kg)}" placeholder="carga" aria-label="carga série ${si+1}"><small>kg</small></div>
@@ -1401,14 +1393,16 @@ function ligarTreinando(){
   const an=$('acadNome'); if (an) an.onkeydown=ev=>{ if (ev.key==='Enter') novaAcad(); };
   // trocar / tirar / acrescentar
   Q('[data-trocar]', b=>b.onclick=()=>{ const k=b.dataset.trocar, ab=A.trocando===k || (pk&&pk.alvo===k); pk=null; A.trocando=ab?null:k; re(); });
-  Q('[data-op]', b=>b.onclick=()=>{ const x=bk(b.dataset.op); x.reg=b.dataset.reg||x.reg; x.nome=b.dataset.nome; A.trocando=null; re(); });
+  Q('[data-op]', b=>b.onclick=()=>{ const x=bk(b.dataset.op); x.nome=b.dataset.nome; A.trocando=null; re(); });
   Q('[data-outroex]', b=>b.onclick=()=>{ const x=bk(b.dataset.outroex); A.trocando=null; pk={alvo:x.k, nivel:'macro', c:catDe(x.reg), r:x.reg}; re(); });
   Q('[data-tirar]', b=>b.onclick=()=>{
     const x=bk(b.dataset.tirar); if (feitasBloco(x) && !confirm(`Tirar ${x.nome}? As séries feitas dele saem do treino.`)) return;
     A.blocos=A.blocos.filter(y=>y!==x); Object.keys(A.sets).forEach(k=>{ if (k.split('|')[0]===x.k) delete A.sets[k]; }); A.trocando=null; re(); });
   Q('[data-addex]', b=>b.onclick=()=>{ A.trocando=null; pk={alvo:'add', nivel:'macro', c:null, r:null}; re(); });
   if (pk) ligarPick(re, nome=>{
-    if (jaTem(A.blocos, nome, pk.alvo==='add'?null:bk(pk.alvo))){ toast('Já está no treino'); re(); return; }
+    const sem=pk.alvo==='add'?null:bk(pk.alvo);
+    if (jaTem(A.blocos, nome, sem)){ toast('Já está no treino'); re(); return; }
+    if (focoOcupado(A.blocos, pk.r, sem)){ toast(REG[pk.r].nome+' já tem exercício'); re(); return; }
     if (pk.alvo==='add'){ A.blocos.push({ k:'n'+uid(), de:null, nome, reg:pk.r, series:3, cargas:'', orig:null }); toast('Adicionado'); }
     else { const x=bk(pk.alvo); if (x){ x.nome=nome; x.reg=pk.r; } }
     pk=null; re(); });
